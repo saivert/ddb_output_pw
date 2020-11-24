@@ -10,7 +10,7 @@ project('ddb_output_pw', 'c',
 debug_cflags = []
 buildtype = get_option('buildtype')
 if buildtype.startswith('debug')
-  debug_cflags += '-DDBPULSE_DEBUG'
+  debug_cflags += '-DDDBPW_DEBUG'
 endif
 
 add_project_arguments(debug_cflags, language: 'c')

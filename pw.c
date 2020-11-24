@@ -31,7 +31,7 @@
 #define OP_ERROR_SUCCESS 0
 #define OP_ERROR_INTERNAL -1
 
-#ifdef DBPULSE_DEBUG
+#ifdef DDBPW_DEBUG
 #define trace(...) { fprintf(stdout, __VA_ARGS__); }
 #else
 #define trace(fmt,...)
