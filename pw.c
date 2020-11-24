@@ -51,8 +51,8 @@ static int state=OUTPUT_STATE_STOPPED;
 static uintptr_t mutex;
 
 struct data {
-	struct pw_thread_loop *loop;
-	struct pw_stream *stream;
+    struct pw_thread_loop *loop;
+    struct pw_stream *stream;
 };
 
 struct data data = { 0, };
@@ -78,23 +78,23 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt);
 
 static void on_process(void *userdata)
 {
-	struct data *data = userdata;
-	struct pw_buffer *b;
-	struct spa_buffer *buf;
-	int n_frames, stride;
-	int16_t *dst;
+    struct data *data = userdata;
+    struct pw_buffer *b;
+    struct spa_buffer *buf;
+    int n_frames, stride;
+    int16_t *dst;
 
-	if ((b = pw_stream_dequeue_buffer(data->stream)) == NULL) {
-		pw_log_warn("out of buffers: %m");
-		return;
-	}
+    if ((b = pw_stream_dequeue_buffer(data->stream)) == NULL) {
+        pw_log_warn("out of buffers: %m");
+        return;
+    }
 
-	buf = b->buffer;
-	if ((dst = buf->datas[0].data) == NULL)
-		return;
+    buf = b->buffer;
+    if ((dst = buf->datas[0].data) == NULL)
+        return;
 
-	stride = sizeof(int16_t) * DEFAULT_CHANNELS;
-	n_frames = buf->datas[0].maxsize / stride;
+    stride = sizeof(int16_t) * DEFAULT_CHANNELS;
+    n_frames = buf->datas[0].maxsize / stride;
 
     int len = n_frames * stride;
 
@@ -106,16 +106,16 @@ static void on_process(void *userdata)
         }
     } 
 
-	buf->datas[0].chunk->offset = 0;
-	buf->datas[0].chunk->stride = stride;
-	buf->datas[0].chunk->size = n_frames * stride;
+    buf->datas[0].chunk->offset = 0;
+    buf->datas[0].chunk->stride = stride;
+    buf->datas[0].chunk->size = n_frames * stride;
 
-	pw_stream_queue_buffer(data->stream, b);
+    pw_stream_queue_buffer(data->stream, b);
 }
 
 static const struct pw_stream_events stream_events = {
-	PW_VERSION_STREAM_EVENTS,
-	.process = on_process,
+    PW_VERSION_STREAM_EVENTS,
+    .process = on_process,
 };
 
 static int ddbpw_init(void)
@@ -131,16 +131,16 @@ static int ddbpw_init(void)
 
     data.loop = pw_thread_loop_new("ddb_out_pw", NULL);
 
-	data.stream = pw_stream_new_simple(
-			pw_thread_loop_get_loop(data.loop),
-			"audio-src",
-			pw_properties_new(
-				PW_KEY_MEDIA_TYPE, "Audio",
-				PW_KEY_MEDIA_CATEGORY, "Playback",
-				PW_KEY_MEDIA_ROLE, "Music",
-				NULL),
-			&stream_events,
-			&data);
+    data.stream = pw_stream_new_simple(
+            pw_thread_loop_get_loop(data.loop),
+            "audio-src",
+            pw_properties_new(
+                PW_KEY_MEDIA_TYPE, "Audio",
+                PW_KEY_MEDIA_CATEGORY, "Playback",
+                PW_KEY_MEDIA_ROLE, "Music",
+                NULL),
+            &stream_events,
+            &data);
 
 
 
@@ -229,25 +229,25 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
     };
 
 
-	const struct spa_pod *params[1];
-	uint8_t buffer[1024];
-	struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+    const struct spa_pod *params[1];
+    uint8_t buffer[1024];
+    struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
 
-	params[0] = spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat,
-			&SPA_AUDIO_INFO_RAW_INIT(
-				.format = pwfmt,
-				.channels = plugin.fmt.channels,
-				.rate = plugin.fmt.samplerate ));
+    params[0] = spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat,
+            &SPA_AUDIO_INFO_RAW_INIT(
+                .format = pwfmt,
+                .channels = plugin.fmt.channels,
+                .rate = plugin.fmt.samplerate ));
 
-	pw_stream_connect(data.stream,
-			  PW_DIRECTION_OUTPUT,
-			  PW_ID_ANY,
-			  PW_STREAM_FLAG_AUTOCONNECT |
-			  PW_STREAM_FLAG_MAP_BUFFERS |
-			  PW_STREAM_FLAG_RT_PROCESS,
-			  params, 1);
+    pw_stream_connect(data.stream,
+              PW_DIRECTION_OUTPUT,
+              PW_ID_ANY,
+              PW_STREAM_FLAG_AUTOCONNECT |
+              PW_STREAM_FLAG_MAP_BUFFERS |
+              PW_STREAM_FLAG_RT_PROCESS,
+              params, 1);
 
-	pw_thread_loop_start(data.loop);
+    pw_thread_loop_start(data.loop);
 
     state = DDB_PLAYBACK_STATE_PLAYING;
 
