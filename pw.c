@@ -44,7 +44,7 @@ static DB_output_t plugin;
 
 #define PW_PLUGIN_ID "pipewire"
 
-
+static char *tfbytecode;
 
 static ddb_waveformat_t requested_fmt;
 static int state=OUTPUT_STATE_STOPPED;
@@ -126,6 +126,53 @@ static const struct pw_stream_events stream_events = {
     .state_changed = on_state_changed,
 };
 
+static void do_update_media_props(DB_playItem_t *track) {
+    int rc, notrackgiven=0;
+
+    ddb_tf_context_t ctx = {
+        ._size = sizeof(ddb_tf_context_t),
+        .flags = DDB_TF_CONTEXT_NO_DYNAMIC,
+        .plt = NULL,
+        .iter = PL_MAIN};
+
+    if (!track) {
+        track = deadbeef->streamer_get_playing_track();
+        notrackgiven = 1;
+    }
+    if (track) {
+        struct spa_dict_item items[3];
+        int n_items=0;
+
+        char buf[1000];
+        const char *artist, *title;
+
+        ctx.it = track;
+        if (deadbeef->tf_eval(&ctx, tfbytecode, buf, sizeof(buf)) > 0) {
+            items[n_items++] = SPA_DICT_ITEM_INIT(PW_KEY_MEDIA_NAME, buf);
+        }
+
+        deadbeef->pl_lock();
+        artist = deadbeef->pl_find_meta(track, "artist");
+        title = deadbeef->pl_find_meta(track, "title");
+
+        if (artist) {
+            items[n_items++] = SPA_DICT_ITEM_INIT(PW_KEY_MEDIA_ARTIST, artist);
+        }
+
+        if (title) {
+            items[n_items++] = SPA_DICT_ITEM_INIT(PW_KEY_MEDIA_TITLE, title);
+        }
+
+        rc = pw_stream_update_properties(data.stream, &SPA_DICT_INIT(items, n_items));
+        if (rc != 1) trace("PipeWire: Error updating properties!\n");
+
+        deadbeef->pl_unlock();
+        if (notrackgiven) deadbeef->pl_item_unref(track);
+    } else {
+        /* do nothing */
+    }
+}
+
 static int ddbpw_init(void)
 {
     trace ("ddbpw_init\n");
@@ -143,6 +190,8 @@ static int ddbpw_init(void)
             pw_thread_loop_get_loop(data.loop),
             "audio-src",
             pw_properties_new(
+                PW_KEY_APP_NAME, "DeaDBeeF Music Player",
+                PW_KEY_APP_ID, "music.deadbeef.player",
                 PW_KEY_MEDIA_TYPE, "Audio",
                 PW_KEY_MEDIA_CATEGORY, "Playback",
                 PW_KEY_MEDIA_ROLE, "Music",
@@ -155,7 +204,7 @@ static int ddbpw_init(void)
         return -1;
     }
 
-
+    do_update_media_props(NULL);
 
     return OP_ERROR_SUCCESS;
 }
@@ -331,13 +380,15 @@ static int ddbpw_plugin_start(void)
     argv[0] = "deadbeef";
 
     pw_init(&argc, (char ***)&argv);
+
+    tfbytecode = deadbeef->tf_compile("[%artist% - ]%title%");
     return 0;
 }
 
 static int ddbpw_plugin_stop(void)
 {
     deadbeef->mutex_free(mutex);
-
+    deadbeef->tf_free(tfbytecode);
     return 0;
 }
 
@@ -351,6 +402,12 @@ static int
 ddbpw_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
     switch (id) {
     case DB_EV_SONGSTARTED:
+        if (state == OUTPUT_STATE_PLAYING) {
+            pw_thread_loop_lock(data.loop);
+            do_update_media_props(((ddb_event_track_t *)ctx)->track);
+            pw_thread_loop_unlock(data.loop);
+        }
+        break;
     case DB_EV_VOLUMECHANGED:
     case DB_EV_CONFIGCHANGED:
         break;
