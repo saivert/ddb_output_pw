@@ -112,9 +112,18 @@ static void on_process(void *userdata)
     pw_stream_queue_buffer(data->stream, b);
 }
 
+static void on_state_changed(void *data, enum pw_stream_state old,
+                             enum pw_stream_state state, const char *error)
+{
+    if (state == PW_STREAM_STATE_ERROR) {
+        log_err("PipeWire: Stream error: %s\n", error);
+    }
+}
+
 static const struct pw_stream_events stream_events = {
     PW_VERSION_STREAM_EVENTS,
     .process = on_process,
+    .state_changed = on_state_changed,
 };
 
 static int ddbpw_init(void)
@@ -140,6 +149,11 @@ static int ddbpw_init(void)
                 NULL),
             &stream_events,
             &data);
+
+    if (!data.stream) {
+        log_err("PipeWire: Error creating stream!");
+        return -1;
+    }
 
 
 
@@ -238,13 +252,16 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
                 .channels = plugin.fmt.channels,
                 .rate = plugin.fmt.samplerate ));
 
-    pw_stream_connect(data.stream,
+    if (0 != pw_stream_connect(data.stream,
               PW_DIRECTION_OUTPUT,
               PW_ID_ANY,
               PW_STREAM_FLAG_AUTOCONNECT |
               PW_STREAM_FLAG_MAP_BUFFERS |
               PW_STREAM_FLAG_RT_PROCESS,
-              params, 1);
+              params, 1)) {
+                  log_err("PipeWire: Error connecting stream!");
+                  return -1;
+              };
 
     pw_thread_loop_start(data.loop);
 
