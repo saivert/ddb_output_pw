@@ -74,7 +74,6 @@ static int ddbpw_unpause();
 static int ddbpw_set_spec(ddb_waveformat_t *fmt);
 
 
-#define DEFAULT_CHANNELS 2
 
 static void on_process(void *userdata)
 {
@@ -93,8 +92,8 @@ static void on_process(void *userdata)
     if ((dst = buf->datas[0].data) == NULL)
         return;
 
-    stride = sizeof(int16_t) * DEFAULT_CHANNELS;
-    n_frames = buf->datas[0].maxsize / stride;
+    stride = 1;
+    n_frames = 4096;
 
     int len = n_frames * stride;
 
