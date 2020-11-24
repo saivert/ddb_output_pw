@@ -115,6 +115,8 @@ static void on_process(void *userdata)
 static void on_state_changed(void *data, enum pw_stream_state old,
                              enum pw_stream_state state, const char *error)
 {
+    trace("PipeWire: Stream state %s\n", pw_stream_state_as_string(state));
+
     if (state == PW_STREAM_STATE_ERROR) {
         log_err("PipeWire: Stream error: %s\n", error);
     }
