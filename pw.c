@@ -241,13 +241,14 @@ static int ddbpw_free(void)
     if (!data.loop) {
         return 0;
     }
+    deadbeef->mutex_lock(mutex);
 
     pw_stream_destroy(data.stream);
     data.stream = NULL;
 
     pw_thread_loop_destroy(data.loop);
     data.loop = NULL;
-
+    deadbeef->mutex_unlock(mutex);
     return OP_ERROR_SUCCESS;
 }
 
@@ -325,6 +326,8 @@ static int ddbpw_play(void)
 {
     trace ("ddbpw_play\n");
 
+    deadbeef->mutex_lock(mutex);
+
     if (!data.loop) {
         ddbpw_init();
     }
@@ -334,6 +337,7 @@ static int ddbpw_play(void)
     if (ret != 0) {
         ddbpw_free();
     }
+    deadbeef->mutex_unlock(mutex);
     return ret;
 }
 
@@ -346,13 +350,18 @@ static int ddbpw_stop(void)
 
 static int ddbpw_pause(void)
 {
-    if (state == DDB_PLAYBACK_STATE_STOPPED) {
-        return -1;
+    if (!data.loop) {
+        if (ddbpw_play() != OP_ERROR_SUCCESS) {
+            return OP_ERROR_INTERNAL;
+        }
     }
+
     // set pause state
     state = DDB_PLAYBACK_STATE_PAUSED;
-
+    pw_thread_loop_lock(data.loop);
+    pw_stream_flush(data.stream, 0);
     pw_stream_set_active(data.stream, 0);
+    pw_thread_loop_unlock(data.loop);
     return OP_ERROR_SUCCESS;
 }
 
@@ -362,7 +371,9 @@ static int ddbpw_unpause(void)
     if (state == DDB_PLAYBACK_STATE_PAUSED) {
         state = DDB_PLAYBACK_STATE_PLAYING;
     }
+    pw_thread_loop_lock(data.loop);
     pw_stream_set_active(data.stream, 1);
+    pw_thread_loop_unlock(data.loop);
     return OP_ERROR_SUCCESS;
 }
 
