@@ -518,13 +518,16 @@ ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void 
     context = pw_context_new(pw_main_loop_get_loop(loop),
                              NULL /* properties */,
                              0 /* user_data size */);
+    if (!context) return;
 
     core = pw_context_connect(context,
                               NULL /* properties */,
                               0 /* user_data size */);
+    if (!core) return;
 
     registry = pw_core_get_registry(core, PW_VERSION_REGISTRY,
                                     0 /* user_data size */);
+    if (!registry) return;
 
     enumuserdata.callback = callback;
     enumuserdata.userdata = userdata;
