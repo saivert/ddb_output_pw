@@ -193,7 +193,7 @@ static int ddbpw_init(void)
 
     data.stream = pw_stream_new_simple(
             pw_thread_loop_get_loop(data.loop),
-            "audio-src",
+            "DeaDBeeF",
             pw_properties_new(
                 PW_KEY_APP_NAME, "DeaDBeeF Music Player",
                 PW_KEY_APP_ID, "music.deadbeef.player",
