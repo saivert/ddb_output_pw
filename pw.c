@@ -166,7 +166,7 @@ static void do_update_media_props(DB_playItem_t *track) {
         }
 
         rc = pw_stream_update_properties(data.stream, &SPA_DICT_INIT(items, n_items));
-        if (rc != 1) trace("PipeWire: Error updating properties!\n");
+        if (rc != n_items) trace("PipeWire: Error updating properties!\n");
 
         deadbeef->pl_unlock();
         if (notrackgiven) deadbeef->pl_item_unref(track);
