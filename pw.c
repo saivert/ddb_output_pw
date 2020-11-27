@@ -21,6 +21,7 @@
 #endif
 
 #include <spa/param/audio/format-utils.h>
+#include <spa/param/props.h>
 #include <pipewire/pipewire.h>
 
 #include <errno.h>
@@ -30,6 +31,9 @@
 
 #define OP_ERROR_SUCCESS 0
 #define OP_ERROR_INTERNAL -1
+
+#define CONFSTR_DDBPW_VOLUMECONTROL "pipewire.volumecontrol"
+#define DDBPW_DEFAULT_VOLUMECONTROL 0
 
 #ifdef DDBPW_DEBUG
 #define trace(...) { fprintf(stdout, __VA_ARGS__); }
@@ -122,10 +126,27 @@ static void on_state_changed(void *data, enum pw_stream_state old,
     }
 }
 
+static void on_control_info(void *data, uint32_t id, const struct pw_stream_control *control) {
+    int i;
+
+    #ifdef DDBPW_DEBUG
+    fprintf(stderr, "PipeWire: Control %s", control->name);
+    for (i = 0; i < control->n_values; i++) {
+        fprintf(stderr, " value[%d] = %f", i, control->values[i]);
+    }
+    fprintf(stderr, "\n");
+    #endif
+
+    if (!strcmp(control->name, "Channel Volumes") && plugin.has_volume) {
+        deadbeef->volume_set_amp(control->values[0]);
+    }
+}
+
 static const struct pw_stream_events stream_events = {
     PW_VERSION_STREAM_EVENTS,
     .process = on_process,
     .state_changed = on_state_changed,
+    .control_info = on_control_info,
 };
 
 static void do_update_media_props(DB_playItem_t *track) {
@@ -426,7 +447,17 @@ ddbpw_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
         }
         break;
     case DB_EV_VOLUMECHANGED:
+        if (data.stream && plugin.has_volume)
+        {
+            float vol;
+            vol = deadbeef->volume_get_amp();
+            pw_thread_loop_lock(data.loop);
+            pw_stream_set_control(data.stream, SPA_PROP_channelVolumes, 1, &vol, 0);
+            pw_thread_loop_unlock(data.loop);
+        }
+        break;
     case DB_EV_CONFIGCHANGED:
+        plugin.has_volume = deadbeef->conf_get_int(CONFSTR_DDBPW_VOLUMECONTROL, DDBPW_DEFAULT_VOLUMECONTROL);
         break;
     }
     return 0;
@@ -544,6 +575,13 @@ ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void 
     pw_main_loop_destroy(loop);
 }
 
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
+static const char settings_dlg[] =
+    "property \"Use PipeWire volume control\" checkbox " CONFSTR_DDBPW_VOLUMECONTROL " " STR(DDBPW_DEFAULT_VOLUMECONTROL) ";\n";
+
+
 static DB_output_t plugin =
 {
     .plugin.api_vmajor = 1,
@@ -575,7 +613,7 @@ static DB_output_t plugin =
     .plugin.website = "http://saivert.com",
     .plugin.start = ddbpw_plugin_start,
     .plugin.stop = ddbpw_plugin_stop,
-    .plugin.configdialog = NULL, /* settings_dlg, */
+    .plugin.configdialog = settings_dlg,
     .plugin.message = ddbpw_message,
     .init = ddbpw_init,
     .free = ddbpw_free,
@@ -586,5 +624,5 @@ static DB_output_t plugin =
     .unpause = ddbpw_unpause,
     .state = ddbpw_get_state,
     .enum_soundcards = ddbpw_enum_soundcards,
-    .has_volume = 0,
+    .has_volume = DDBPW_DEFAULT_VOLUMECONTROL,
 };
