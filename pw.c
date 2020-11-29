@@ -507,16 +507,25 @@ static const struct pw_registry_events registry_events = {
     .global = registry_event_global,
 };
 
+struct donedata {
+    int pending;
+    int done;
+    struct pw_main_loop *loop;
+};
+
+void core_event_done(void *object, uint32_t id, int seq) {
+        struct donedata *donedata = (struct donedata *)object;
+        if (id == PW_ID_CORE && seq == donedata->pending) {
+                donedata->done = 1;
+                pw_main_loop_quit(donedata->loop);
+        }
+}
+
 static int roundtrip(struct pw_core *core, struct pw_main_loop *loop)
 {
         struct spa_hook core_listener;
-        int pending, done = 0;
-        void core_event_done(void *object, uint32_t id, int seq) {
-                if (id == PW_ID_CORE && seq == pending) {
-                        done = 1;
-                        pw_main_loop_quit(loop);
-                }
-        }
+        struct donedata donedata = {0,0, loop};
+
         const struct pw_core_events core_events = {
                 PW_VERSION_CORE_EVENTS,
                 .done = core_event_done,
@@ -524,11 +533,11 @@ static int roundtrip(struct pw_core *core, struct pw_main_loop *loop)
 
         spa_zero(core_listener);
         pw_core_add_listener(core, &core_listener,
-                                 &core_events, NULL);
+                                 &core_events, &donedata);
 
-        pending = pw_core_sync(core, PW_ID_CORE, 0);
+        donedata.pending = pw_core_sync(core, PW_ID_CORE, 0);
 
-        while (!done) {
+        while (!donedata.done) {
                 pw_main_loop_run(loop);
         }
         spa_hook_remove(&core_listener);
