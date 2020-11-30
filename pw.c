@@ -268,6 +268,8 @@ static int ddbpw_free(void)
     }
     deadbeef->mutex_lock(mutex);
 
+    pw_thread_loop_stop(data.loop);
+
     pw_stream_destroy(data.stream);
     data.stream = NULL;
 
