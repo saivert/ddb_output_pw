@@ -486,6 +486,13 @@ static void registry_event_global(void *data, uint32_t id,
             const char *desc, *name;
             desc = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);
             name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
+            if (!name) {
+                char buf[64];
+                snprintf(buf, sizeof(buf), "%d", id);
+                name = buf;
+            }
+
+            if (!desc) desc = name;
 
             // Avoid crazy long descriptions, they grow the GTK dropdown box in deadbeef GUI
             // Truncate with a middle ellipsis so we catch output port names that are always at the end
