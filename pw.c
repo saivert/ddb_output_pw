@@ -34,6 +34,8 @@
 
 #define CONFSTR_DDBPW_VOLUMECONTROL "pipewire.volumecontrol"
 #define DDBPW_DEFAULT_VOLUMECONTROL 0
+#define CONFSTR_DDBPW_REMOTENAME "pipewire.remotename"
+#define DDBPW_DEFAULT_REMOTENAME ""
 
 #ifdef DDBPW_DEBUG
 #define trace(...) { fprintf(stdout, __VA_ARGS__); }
@@ -210,12 +212,17 @@ static int ddbpw_init(void)
     data.loop = pw_thread_loop_new("ddb_out_pw", NULL);
 
     char dev[256];
+    char remote[256];
     deadbeef->conf_get_str (PW_PLUGIN_ID "_soundcard", "default", dev, sizeof(dev));
+
+    deadbeef->conf_get_str(CONFSTR_DDBPW_REMOTENAME, DDBPW_DEFAULT_REMOTENAME, remote, sizeof(remote));
+
 
     data.stream = pw_stream_new_simple(
             pw_thread_loop_get_loop(data.loop),
             "DeaDBeeF",
             pw_properties_new(
+                PW_KEY_REMOTE_NAME, (remote[0] ? remote: NULL),
                 PW_KEY_APP_NAME, "DeaDBeeF Music Player",
                 PW_KEY_APP_ID, "music.deadbeef.player",
                 PW_KEY_MEDIA_TYPE, "Audio",
@@ -338,7 +345,10 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
               PW_STREAM_FLAG_MAP_BUFFERS |
               PW_STREAM_FLAG_RT_PROCESS,
               params, 1)) {
-                  log_err("PipeWire: Error connecting stream!");
+                  log_err("PipeWire: Error connecting stream!\n");
+                  if (pw_properties_get(pw_stream_get_properties(data.stream), PW_KEY_REMOTE_NAME)) {
+                      log_err("PipeWire: Please check if remote daemon name is valid and daemon is up.\n")
+                  }
                   return -1;
               };
 
@@ -569,8 +579,13 @@ ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void 
                              0 /* user_data size */);
     if (!context) return;
 
+    char remote[256];
+    deadbeef->conf_get_str(CONFSTR_DDBPW_REMOTENAME, DDBPW_DEFAULT_REMOTENAME, remote, sizeof(remote));
+
     core = pw_context_connect(context,
-                              NULL /* properties */,
+                                pw_properties_new(
+                                PW_KEY_REMOTE_NAME,  (remote[0] ? remote: NULL),
+                                NULL),
                               0 /* user_data size */);
     if (!core) return;
 
@@ -597,6 +612,7 @@ ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void 
 #define STR(x) STR_HELPER(x)
 
 static const char settings_dlg[] =
+    "property \"PipeWire remote daemon name (empty for default)\" entry " CONFSTR_DDBPW_REMOTENAME " " STR(DDBPW_DEFAULT_REMOTENAME) ";\n"
     "property \"Use PipeWire volume control\" checkbox " CONFSTR_DDBPW_VOLUMECONTROL " " STR(DDBPW_DEFAULT_VOLUMECONTROL) ";\n";
 
 
