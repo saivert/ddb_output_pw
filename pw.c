@@ -481,7 +481,7 @@ static void registry_event_global(void *data, uint32_t id,
         const char *media_class;
         media_class = spa_dict_lookup(props, PW_KEY_MEDIA_CLASS);
 
-        if (media_class && !strcmp(media_class, "Audio/Sink"))
+        if (media_class && (!strcmp(media_class, "Audio/Sink") || !strcmp(media_class, "Audio/Duplex")))
         {
             const char *desc, *name;
             desc = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);
