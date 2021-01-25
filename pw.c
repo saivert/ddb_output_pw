@@ -86,7 +86,6 @@ static void on_process(void *userdata)
     struct data *data = userdata;
     struct pw_buffer *b;
     struct spa_buffer *buf;
-    int n_frames, stride;
     int16_t *dst;
 
     if ((b = pw_stream_dequeue_buffer(data->stream)) == NULL) {
@@ -98,22 +97,15 @@ static void on_process(void *userdata)
     if ((dst = buf->datas[0].data) == NULL)
         return;
 
-    stride = 1;
-    n_frames = 4096;
-
-    int len = n_frames * stride;
-
-    if (deadbeef->streamer_ok_to_read(len)) {
-        int bytesread = deadbeef->streamer_read (buf->datas[0].data , len);
-
-        if (bytesread < len) {
-            memset (buf->datas[0].data + len, 0, len-bytesread);
-        }
+    int len = 4096;
+    int bytesread=0;
+    if (deadbeef->streamer_ok_to_read(-1)) {
+        bytesread = deadbeef->streamer_read (buf->datas[0].data , len);
     } 
 
     buf->datas[0].chunk->offset = 0;
-    buf->datas[0].chunk->stride = stride;
-    buf->datas[0].chunk->size = n_frames * stride;
+    buf->datas[0].chunk->stride = 1;
+    buf->datas[0].chunk->size = bytesread;
 
     pw_stream_queue_buffer(data->stream, b);
 }
