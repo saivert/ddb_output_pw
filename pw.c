@@ -59,6 +59,7 @@ static uintptr_t mutex;
 struct data {
     struct pw_thread_loop *loop;
     struct pw_stream *stream;
+    int pw_has_init;
 };
 
 struct data data = { 0, };
@@ -79,7 +80,17 @@ static int ddbpw_unpause();
 
 static int ddbpw_set_spec(ddb_waveformat_t *fmt);
 
+void my_pw_init() {
+    if (data.pw_has_init || state != DDB_PLAYBACK_STATE_STOPPED) return;
+    pw_init(NULL, NULL);
+    data.pw_has_init = 1;
+}
 
+void my_pw_deinit() {
+    if (!data.pw_has_init || state != DDB_PLAYBACK_STATE_STOPPED) return;
+    pw_deinit();
+    data.pw_has_init = 0;
+}
 
 static void on_process(void *userdata)
 {
@@ -194,7 +205,7 @@ static int ddbpw_init(void)
 {
     trace ("ddbpw_init\n");
 
-    pw_init(NULL, NULL);
+    my_pw_init();
 
     state = OUTPUT_STATE_STOPPED;
 
@@ -277,6 +288,7 @@ static int ddbpw_free(void)
     pw_thread_loop_destroy(data.loop);
     data.loop = NULL;
     deadbeef->mutex_unlock(mutex);
+    my_pw_deinit();
     return OP_ERROR_SUCCESS;
 }
 
@@ -562,6 +574,8 @@ ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void 
     struct spa_hook registry_listener;
     struct enum_card_userdata enumuserdata;
 
+    my_pw_init();
+
     loop = pw_main_loop_new(NULL /* properties */);
     context = pw_context_new(pw_main_loop_get_loop(loop),
                              NULL /* properties */,
@@ -595,6 +609,7 @@ ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void 
     pw_core_disconnect(core);
     pw_context_destroy(context);
     pw_main_loop_destroy(loop);
+    my_pw_deinit();
 }
 
 #define STR_HELPER(x) #x
