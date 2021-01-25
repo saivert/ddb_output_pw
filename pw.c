@@ -80,13 +80,13 @@ static int ddbpw_unpause();
 
 static int ddbpw_set_spec(ddb_waveformat_t *fmt);
 
-void my_pw_init() {
+static void my_pw_init() {
     if (data.pw_has_init || state != DDB_PLAYBACK_STATE_STOPPED) return;
     pw_init(NULL, NULL);
     data.pw_has_init = 1;
 }
 
-void my_pw_deinit() {
+static void my_pw_deinit() {
     if (!data.pw_has_init || state != DDB_PLAYBACK_STATE_STOPPED) return;
     pw_deinit();
     data.pw_has_init = 0;
