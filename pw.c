@@ -194,6 +194,8 @@ static int ddbpw_init(void)
 {
     trace ("ddbpw_init\n");
 
+    pw_init(NULL, NULL);
+
     state = OUTPUT_STATE_STOPPED;
 
     if (requested_fmt.samplerate != 0) {
@@ -417,11 +419,6 @@ static ddb_playback_state_t ddbpw_get_state(void)
 static int ddbpw_plugin_start(void)
 {
     mutex = deadbeef->mutex_create();
-    int argc = 1;
-    const char **argv = alloca (sizeof (char *) * argc);
-    argv[0] = "deadbeef";
-
-    pw_init(&argc, (char ***)&argv);
 
     tfbytecode = deadbeef->tf_compile("[%artist% - ]%title%");
     return 0;
