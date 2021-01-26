@@ -296,6 +296,64 @@ static int ddbpw_free(void)
     return OP_ERROR_SUCCESS;
 }
 
+static void set_channel_map(int channels, struct spa_audio_info_raw* audio_info) {
+    /* Following http://www.microsoft.com/whdc/device/audio/multichaud.mspx#EKLAC */
+
+    switch (channels) {
+        case 1:
+            audio_info->position[0] = SPA_AUDIO_CHANNEL_MONO;
+            return;
+
+        case 18:
+            audio_info->position[15] = SPA_AUDIO_CHANNEL_TRL;
+            audio_info->position[16] = SPA_AUDIO_CHANNEL_TRC;
+            audio_info->position[17] = SPA_AUDIO_CHANNEL_TRR;
+            /* Fall through */
+
+        case 15:
+            audio_info->position[12] = SPA_AUDIO_CHANNEL_TFL;
+            audio_info->position[13] = SPA_AUDIO_CHANNEL_TFC;
+            audio_info->position[14] = SPA_AUDIO_CHANNEL_TFR;
+            /* Fall through */
+
+        case 12:
+            audio_info->position[11] = SPA_AUDIO_CHANNEL_TC;
+            /* Fall through */
+
+        case 11:
+            audio_info->position[9] = SPA_AUDIO_CHANNEL_SL;
+            audio_info->position[10] = SPA_AUDIO_CHANNEL_SR;
+            /* Fall through */
+
+        case 9:
+            audio_info->position[8] = SPA_AUDIO_CHANNEL_RC;
+            /* Fall through */
+
+        case 8:
+            audio_info->position[6] = SPA_AUDIO_CHANNEL_FLC;
+            audio_info->position[7] = SPA_AUDIO_CHANNEL_FRC;
+            /* Fall through */
+
+        case 6:
+            audio_info->position[4] = SPA_AUDIO_CHANNEL_RL;
+            audio_info->position[5] = SPA_AUDIO_CHANNEL_RR;
+            /* Fall through */
+
+        case 4:
+            audio_info->position[3] = SPA_AUDIO_CHANNEL_LFE;
+            /* Fall through */
+
+        case 3:
+            audio_info->position[2] = SPA_AUDIO_CHANNEL_FC;
+            /* Fall through */
+
+        case 2:
+            audio_info->position[0] = SPA_AUDIO_CHANNEL_FL;
+            audio_info->position[1] = SPA_AUDIO_CHANNEL_FR;
+
+    }
+}
+
 static int ddbpw_set_spec(ddb_waveformat_t *fmt)
 {
     memcpy (&plugin.fmt, fmt, sizeof (ddb_waveformat_t));
@@ -342,11 +400,14 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
     uint8_t buffer[1024];
     struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
 
-    params[0] = spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat,
-            &SPA_AUDIO_INFO_RAW_INIT(
+    struct spa_audio_info_raw rawinfo =  SPA_AUDIO_INFO_RAW_INIT(
                 .format = pwfmt,
                 .channels = plugin.fmt.channels,
-                .rate = plugin.fmt.samplerate ));
+                .rate = plugin.fmt.samplerate );
+
+    set_channel_map(plugin.fmt.channels, &rawinfo);
+
+    params[0] = spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &rawinfo);
 
     if (0 != pw_stream_connect(data.stream,
               PW_DIRECTION_OUTPUT,
