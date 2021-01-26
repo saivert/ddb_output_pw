@@ -50,6 +50,9 @@ static DB_output_t plugin;
 
 #define PW_PLUGIN_ID "pipewire"
 
+static const char application_title[] = "DeaDBeeF Music Player";
+static const char application_id[] = "music.deadbeef.player";
+
 static char *tfbytecode;
 
 static ddb_waveformat_t requested_fmt;
@@ -225,11 +228,12 @@ static int ddbpw_init(void)
 
     data.stream = pw_stream_new_simple(
             pw_thread_loop_get_loop(data.loop),
-            "DeaDBeeF",
+            application_title,
             pw_properties_new(
                 PW_KEY_REMOTE_NAME, (remote[0] ? remote: NULL),
-                PW_KEY_APP_NAME, "DeaDBeeF Music Player",
-                PW_KEY_APP_ID, "music.deadbeef.player",
+                PW_KEY_NODE_NAME, application_title,
+                PW_KEY_APP_NAME, application_title,
+                PW_KEY_APP_ID, application_id,
                 PW_KEY_MEDIA_TYPE, "Audio",
                 PW_KEY_MEDIA_CATEGORY, "Playback",
                 PW_KEY_MEDIA_ROLE, "Music",
