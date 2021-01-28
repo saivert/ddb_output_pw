@@ -157,7 +157,7 @@ static const struct pw_stream_events stream_events = {
     .control_info = on_control_info,
 };
 
-static void do_update_media_props(DB_playItem_t *track) {
+static void do_update_media_props(DB_playItem_t *track, struct pw_properties *props) {
     int rc, notrackgiven=0;
 
     ddb_tf_context_t ctx = {
@@ -194,8 +194,12 @@ static void do_update_media_props(DB_playItem_t *track) {
             items[n_items++] = SPA_DICT_ITEM_INIT(PW_KEY_MEDIA_TITLE, title);
         }
 
-        rc = pw_stream_update_properties(data.stream, &SPA_DICT_INIT(items, n_items));
-        if (rc != n_items) trace("PipeWire: Error updating properties!\n");
+        if (props) {
+            pw_properties_update(props, &SPA_DICT_INIT(items, n_items));
+        } else {
+            rc = pw_stream_update_properties(data.stream, &SPA_DICT_INIT(items, n_items));
+            if (rc < 0) trace("PipeWire: Error updating properties!\n");
+        }
 
         deadbeef->pl_unlock();
         if (notrackgiven) deadbeef->pl_item_unref(track);
@@ -226,10 +230,7 @@ static int ddbpw_init(void)
     deadbeef->conf_get_str(CONFSTR_DDBPW_REMOTENAME, DDBPW_DEFAULT_REMOTENAME, remote, sizeof(remote));
 
 
-    data.stream = pw_stream_new_simple(
-            pw_thread_loop_get_loop(data.loop),
-            application_title,
-            pw_properties_new(
+    struct pw_properties *props = pw_properties_new(
                 PW_KEY_REMOTE_NAME, (remote[0] ? remote: NULL),
                 PW_KEY_NODE_NAME, application_title,
                 PW_KEY_APP_NAME, application_title,
@@ -238,7 +239,13 @@ static int ddbpw_init(void)
                 PW_KEY_MEDIA_CATEGORY, "Playback",
                 PW_KEY_MEDIA_ROLE, "Music",
                 PW_KEY_NODE_TARGET, (!strcmp(dev, "default")) ? NULL: dev,
-                NULL),
+                NULL);
+    do_update_media_props(NULL, props);
+
+    data.stream = pw_stream_new_simple(
+            pw_thread_loop_get_loop(data.loop),
+            application_title,
+            props,
             &stream_events,
             &data);
 
@@ -247,7 +254,6 @@ static int ddbpw_init(void)
         return -1;
     }
 
-    do_update_media_props(NULL);
 
     return OP_ERROR_SUCCESS;
 }
@@ -520,7 +526,7 @@ ddbpw_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
     case DB_EV_SONGSTARTED:
         if (state == OUTPUT_STATE_PLAYING) {
             pw_thread_loop_lock(data.loop);
-            do_update_media_props(((ddb_event_track_t *)ctx)->track);
+            do_update_media_props(((ddb_event_track_t *)ctx)->track, NULL);
             pw_thread_loop_unlock(data.loop);
         }
         break;
