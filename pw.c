@@ -35,6 +35,7 @@
 #define CONFSTR_DDBPW_VOLUMECONTROL "pipewire.volumecontrol"
 #define DDBPW_DEFAULT_VOLUMECONTROL 0
 #define CONFSTR_DDBPW_REMOTENAME "pipewire.remotename"
+#define CONFSTR_DDBPW_PROPS "pipewire.properties"
 #define DDBPW_DEFAULT_REMOTENAME ""
 
 #ifdef DDBPW_DEBUG
@@ -225,10 +226,12 @@ static int ddbpw_init(void)
 
     char dev[256];
     char remote[256];
+    char propstr[256];
     deadbeef->conf_get_str (PW_PLUGIN_ID "_soundcard", "default", dev, sizeof(dev));
 
     deadbeef->conf_get_str(CONFSTR_DDBPW_REMOTENAME, DDBPW_DEFAULT_REMOTENAME, remote, sizeof(remote));
 
+    deadbeef->conf_get_str(CONFSTR_DDBPW_PROPS, "", propstr, sizeof(propstr));
 
     struct pw_properties *props = pw_properties_new(
                 PW_KEY_REMOTE_NAME, (remote[0] ? remote: NULL),
@@ -241,6 +244,8 @@ static int ddbpw_init(void)
                 PW_KEY_NODE_TARGET, (!strcmp(dev, "default")) ? NULL: dev,
                 NULL);
     do_update_media_props(NULL, props);
+
+    pw_properties_update_string(props, propstr, strlen(propstr));
 
     data.stream = pw_stream_new_simple(
             pw_thread_loop_get_loop(data.loop),
@@ -688,6 +693,7 @@ ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void 
 
 static const char settings_dlg[] =
     "property \"PipeWire remote daemon name (empty for default)\" entry " CONFSTR_DDBPW_REMOTENAME " " STR(DDBPW_DEFAULT_REMOTENAME) ";\n"
+    "property \"Custom properties (overrides existing ones)\" entry " CONFSTR_DDBPW_PROPS " \"\" ;\n"
     "property \"Use PipeWire volume control\" checkbox " CONFSTR_DDBPW_VOLUMECONTROL " " STR(DDBPW_DEFAULT_VOLUMECONTROL) ";\n";
 
 
