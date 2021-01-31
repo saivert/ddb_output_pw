@@ -59,6 +59,11 @@ static char *tfbytecode;
 static ddb_waveformat_t requested_fmt;
 static int state=OUTPUT_STATE_STOPPED;
 static uintptr_t mutex;
+static int _setformat_requested;
+static intptr_t _setformat_tid;
+
+static struct spa_pod * makeformat();
+
 
 struct data {
     struct pw_thread_loop *loop;
@@ -103,6 +108,8 @@ static void on_process(void *userdata)
     struct spa_buffer *buf;
     int16_t *dst;
 
+    if (_setformat_requested) goto end;
+
     if ((b = pw_stream_dequeue_buffer(data->stream)) == NULL) {
         pw_log_warn("out of buffers: %m");
         return;
@@ -121,8 +128,12 @@ static void on_process(void *userdata)
     buf->datas[0].chunk->offset = 0;
     buf->datas[0].chunk->stride = 1;
     buf->datas[0].chunk->size = bytesread;
-
     pw_stream_queue_buffer(data->stream, b);
+end:
+
+    if (_setformat_requested) {
+_setformat_requested = 0;
+    }
 }
 
 static void on_state_changed(void *data, enum pw_stream_state old,
@@ -265,24 +276,20 @@ static int ddbpw_init(void)
 
 static int ddbpw_setformat (ddb_waveformat_t *fmt)
 {
-    int st = state;
+    const struct spa_pod *params[1];
+
+    deadbeef->mutex_lock(mutex);
+    _setformat_requested = 1;
     memcpy (&requested_fmt, fmt, sizeof (ddb_waveformat_t));
-    if (!data.loop
-        || !memcmp (fmt, &plugin.fmt, sizeof (ddb_waveformat_t))) {
-        return 0;
-    }
+    memcpy (&plugin.fmt, fmt, sizeof (ddb_waveformat_t));
 
-    ddbpw_free ();
-    ddbpw_init ();
-    int res = 0;
-    if (st == OUTPUT_STATE_PLAYING) {
-        res = ddbpw_play ();
-    }
-    else if (st == OUTPUT_STATE_PAUSED) {
-        res = ddbpw_pause ();
-    }
+    params[0] = makeformat();
+    pw_thread_loop_lock(data.loop);
+    pw_stream_update_params(data.stream, params, 1);
+    pw_thread_loop_unlock(data.loop);
 
-    return res;
+    deadbeef->mutex_unlock(mutex);
+    return 0;
 }
 
 static int ddbpw_free(void)
@@ -363,6 +370,49 @@ static void set_channel_map(int channels, struct spa_audio_info_raw* audio_info)
             audio_info->position[1] = SPA_AUDIO_CHANNEL_FR;
 
     }
+}
+
+static struct spa_pod * makeformat()
+{
+
+    enum spa_audio_format pwfmt;
+
+    switch (plugin.fmt.bps) {
+    case 8:
+        pwfmt = SPA_AUDIO_FORMAT_S8;
+        break;
+    case 16:
+        pwfmt = SPA_AUDIO_FORMAT_S16_LE;
+        break;
+    case 24:
+        pwfmt = SPA_AUDIO_FORMAT_S24_LE;
+        break;
+    case 32:
+        if (plugin.fmt.is_float) {
+            pwfmt = SPA_AUDIO_FORMAT_F32_LE;
+        }
+        else {
+            pwfmt = SPA_AUDIO_FORMAT_S32_LE;
+        }
+        break;
+    default:
+        return NULL;
+    };
+
+
+    
+    uint8_t buffer[1024];
+    struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+
+    struct spa_audio_info_raw rawinfo =  SPA_AUDIO_INFO_RAW_INIT(
+                .format = pwfmt,
+                .channels = plugin.fmt.channels,
+                .rate = plugin.fmt.samplerate );
+
+    set_channel_map(plugin.fmt.channels, &rawinfo);
+
+    return spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &rawinfo);
+
 }
 
 static int ddbpw_set_spec(ddb_waveformat_t *fmt)
