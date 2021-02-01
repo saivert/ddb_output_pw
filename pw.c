@@ -101,6 +101,23 @@ static void my_pw_deinit() {
     data.pw_has_init = 0;
 }
 
+static void _apply_format(void *ctx)
+{
+    deadbeef->mutex_lock(mutex);
+
+    pw_thread_loop_lock(data.loop);
+    pw_stream_flush(data.stream, 0);
+    pw_stream_disconnect(data.stream);
+    ddbpw_set_spec(&requested_fmt);
+    pw_thread_loop_unlock(data.loop);
+    _setformat_requested = 0;
+
+    deadbeef->mutex_unlock(mutex);
+
+    deadbeef->thread_detach(_setformat_tid);
+    _setformat_tid = 0;
+}
+
 static void on_process(void *userdata)
 {
     struct data *data = userdata;
@@ -108,38 +125,38 @@ static void on_process(void *userdata)
     struct spa_buffer *buf;
     int16_t *dst;
 
-    if (_setformat_requested) goto end;
+    if (!_setformat_requested) {
+        if ((b = pw_stream_dequeue_buffer(data->stream)) == NULL) {
+            pw_log_warn("out of buffers: %m");
+            return;
+        }
 
-    if ((b = pw_stream_dequeue_buffer(data->stream)) == NULL) {
-        pw_log_warn("out of buffers: %m");
-        return;
-    }
+        buf = b->buffer;
+        if ((dst = buf->datas[0].data) == NULL)
+            return;
 
-    buf = b->buffer;
-    if ((dst = buf->datas[0].data) == NULL)
-        return;
+        int len = 4096;
+        int bytesread=0;
+        if (deadbeef->streamer_ok_to_read(-1)) {
+            bytesread = deadbeef->streamer_read (buf->datas[0].data , len);
+        } 
 
-    int len = 4096;
-    int bytesread=0;
-    if (deadbeef->streamer_ok_to_read(-1)) {
-        bytesread = deadbeef->streamer_read (buf->datas[0].data , len);
-    } 
-
-    buf->datas[0].chunk->offset = 0;
-    buf->datas[0].chunk->stride = 1;
-    buf->datas[0].chunk->size = bytesread;
-    pw_stream_queue_buffer(data->stream, b);
-end:
-
-    if (_setformat_requested) {
-_setformat_requested = 0;
+        buf->datas[0].chunk->offset = 0;
+        buf->datas[0].chunk->stride = 1;
+        buf->datas[0].chunk->size = bytesread;
+        pw_stream_queue_buffer(data->stream, b);
+    } else {
+        _setformat_tid = deadbeef->thread_start(_apply_format, NULL);
     }
 }
 
-static void on_state_changed(void *data, enum pw_stream_state old,
+static void on_state_changed(void *_data, enum pw_stream_state old,
                              enum pw_stream_state pwstate, const char *error)
 {
     trace("PipeWire: Stream state %s\n", pw_stream_state_as_string(state));
+
+    if (_setformat_requested)
+        return;
 
     if (pwstate == PW_STREAM_STATE_ERROR || (state == OUTPUT_STATE_PLAYING && pwstate == PW_STREAM_STATE_UNCONNECTED ) ) {
         log_err("PipeWire: Stream error: %s\n", error);
@@ -276,18 +293,9 @@ static int ddbpw_init(void)
 
 static int ddbpw_setformat (ddb_waveformat_t *fmt)
 {
-    const struct spa_pod *params[1];
-
     deadbeef->mutex_lock(mutex);
     _setformat_requested = 1;
     memcpy (&requested_fmt, fmt, sizeof (ddb_waveformat_t));
-    memcpy (&plugin.fmt, fmt, sizeof (ddb_waveformat_t));
-
-    params[0] = makeformat();
-    pw_thread_loop_lock(data.loop);
-    pw_stream_update_params(data.stream, params, 1);
-    pw_thread_loop_unlock(data.loop);
-
     deadbeef->mutex_unlock(mutex);
     return 0;
 }
@@ -372,12 +380,12 @@ static void set_channel_map(int channels, struct spa_audio_info_raw* audio_info)
     }
 }
 
-static struct spa_pod * makeformat()
+static struct spa_pod * makeformat(ddb_waveformat_t *fmt)
 {
 
     enum spa_audio_format pwfmt;
 
-    switch (plugin.fmt.bps) {
+    switch (fmt->bps) {
     case 8:
         pwfmt = SPA_AUDIO_FORMAT_S8;
         break;
@@ -388,7 +396,7 @@ static struct spa_pod * makeformat()
         pwfmt = SPA_AUDIO_FORMAT_S24_LE;
         break;
     case 32:
-        if (plugin.fmt.is_float) {
+        if (fmt->is_float) {
             pwfmt = SPA_AUDIO_FORMAT_F32_LE;
         }
         else {
@@ -406,10 +414,10 @@ static struct spa_pod * makeformat()
 
     struct spa_audio_info_raw rawinfo =  SPA_AUDIO_INFO_RAW_INIT(
                 .format = pwfmt,
-                .channels = plugin.fmt.channels,
-                .rate = plugin.fmt.samplerate );
+                .channels = fmt->channels,
+                .rate = fmt->samplerate );
 
-    set_channel_map(plugin.fmt.channels, &rawinfo);
+    set_channel_map(fmt->channels, &rawinfo);
 
     return spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &rawinfo);
 
@@ -432,43 +440,8 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
 
     trace ("format %dbit %s %dch %dHz channelmask=%X\n", plugin.fmt.bps, plugin.fmt.is_float ? "float" : "int", plugin.fmt.channels, plugin.fmt.samplerate, plugin.fmt.channelmask);
 
-    enum spa_audio_format pwfmt;
-
-    switch (plugin.fmt.bps) {
-    case 8:
-        pwfmt = SPA_AUDIO_FORMAT_S8;
-        break;
-    case 16:
-        pwfmt = SPA_AUDIO_FORMAT_S16_LE;
-        break;
-    case 24:
-        pwfmt = SPA_AUDIO_FORMAT_S24_LE;
-        break;
-    case 32:
-        if (plugin.fmt.is_float) {
-            pwfmt = SPA_AUDIO_FORMAT_F32_LE;
-        }
-        else {
-            pwfmt = SPA_AUDIO_FORMAT_S32_LE;
-        }
-        break;
-    default:
-        return -1;
-    };
-
-
     const struct spa_pod *params[1];
-    uint8_t buffer[1024];
-    struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
-
-    struct spa_audio_info_raw rawinfo =  SPA_AUDIO_INFO_RAW_INIT(
-                .format = pwfmt,
-                .channels = plugin.fmt.channels,
-                .rate = plugin.fmt.samplerate );
-
-    set_channel_map(plugin.fmt.channels, &rawinfo);
-
-    params[0] = spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &rawinfo);
+    params[0] = makeformat(&plugin.fmt);
 
     if (0 != pw_stream_connect(data.stream,
               PW_DIRECTION_OUTPUT,
@@ -484,7 +457,6 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
                   return -1;
               };
 
-    pw_thread_loop_start(data.loop);
 
     state = DDB_PLAYBACK_STATE_PLAYING;
 
@@ -503,6 +475,7 @@ static int ddbpw_play(void)
 
 
     int ret = ddbpw_set_spec(&plugin.fmt);
+    pw_thread_loop_start(data.loop);
     if (ret != 0) {
         ddbpw_free();
     }
