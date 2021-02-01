@@ -145,7 +145,7 @@ static void on_process(void *userdata)
         buf->datas[0].chunk->stride = 1;
         buf->datas[0].chunk->size = bytesread;
         pw_stream_queue_buffer(data->stream, b);
-    } else {
+    } else if (!_setformat_tid) {
         _setformat_tid = deadbeef->thread_start(_apply_format, NULL);
     }
 }
