@@ -60,7 +60,6 @@ static ddb_waveformat_t requested_fmt;
 static int state=OUTPUT_STATE_STOPPED;
 static uintptr_t mutex;
 static int _setformat_requested;
-static intptr_t _setformat_tid;
 
 static struct spa_pod * makeformat();
 
@@ -101,21 +100,22 @@ static void my_pw_deinit() {
     data.pw_has_init = 0;
 }
 
-static void _apply_format(void *ctx)
+static int _apply_format(struct spa_loop *loop,
+				  bool async,
+				  uint32_t seq,
+				  const void *_data,
+				  size_t size,
+				  void *user_data)
 {
     deadbeef->mutex_lock(mutex);
 
-    pw_thread_loop_lock(data.loop);
-    pw_stream_flush(data.stream, 0);
     pw_stream_disconnect(data.stream);
     ddbpw_set_spec(&requested_fmt);
-    pw_thread_loop_unlock(data.loop);
     _setformat_requested = 0;
 
     deadbeef->mutex_unlock(mutex);
 
-    deadbeef->thread_detach(_setformat_tid);
-    _setformat_tid = 0;
+    return 0;
 }
 
 static void on_process(void *userdata)
@@ -145,8 +145,8 @@ static void on_process(void *userdata)
         buf->datas[0].chunk->stride = 1;
         buf->datas[0].chunk->size = bytesread;
         pw_stream_queue_buffer(data->stream, b);
-    } else if (!_setformat_tid) {
-        _setformat_tid = deadbeef->thread_start(_apply_format, NULL);
+    } else  {
+        pw_loop_invoke(pw_thread_loop_get_loop(data->loop), _apply_format, 1, NULL, 0, false, NULL);
     }
 }
 
