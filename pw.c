@@ -115,6 +115,7 @@ static int _apply_format(struct spa_loop *loop,
 
     deadbeef->mutex_unlock(mutex);
 
+    trace("From inside loop invoke function! %d\n", seq);
     return 0;
 }
 
@@ -146,7 +147,9 @@ static void on_process(void *userdata)
         buf->datas[0].chunk->size = bytesread;
         pw_stream_queue_buffer(data->stream, b);
     } else  {
+        deadbeef->mutex_lock(mutex);
         pw_loop_invoke(pw_thread_loop_get_loop(data->loop), _apply_format, 1, NULL, 0, false, NULL);
+        deadbeef->mutex_unlock(mutex);
     }
 }
 
@@ -244,6 +247,7 @@ static int ddbpw_init(void)
     my_pw_init();
 
     state = OUTPUT_STATE_STOPPED;
+    _setformat_requested = 0;
 
     if (requested_fmt.samplerate != 0) {
         memcpy (&plugin.fmt, &requested_fmt, sizeof (ddb_waveformat_t));
@@ -293,6 +297,7 @@ static int ddbpw_init(void)
 
 static int ddbpw_setformat (ddb_waveformat_t *fmt)
 {
+    trace("Pipewire: setformat called!\n");
     deadbeef->mutex_lock(mutex);
     _setformat_requested = 1;
     memcpy (&requested_fmt, fmt, sizeof (ddb_waveformat_t));
