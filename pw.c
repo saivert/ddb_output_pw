@@ -48,6 +48,7 @@
 
 DB_functions_t * deadbeef;
 static DB_output_t plugin;
+static char plugin_description[1024];
 
 #define PW_PLUGIN_ID "pipewire"
 
@@ -550,6 +551,9 @@ static int ddbpw_plugin_stop(void)
 DB_plugin_t * ddb_out_pw_load(DB_functions_t *api)
 {
     deadbeef = api;
+    snprintf(plugin_description, sizeof(plugin_description),
+        "This is a PipeWire plugin.\nLinked to library version %s\n", pw_get_library_version());
+    plugin.plugin.descr = plugin_description;
     return DB_PLUGIN (&plugin);
 }
 
@@ -735,7 +739,7 @@ static DB_output_t plugin =
     .plugin.type = DB_PLUGIN_OUTPUT,
     .plugin.id = PW_PLUGIN_ID,
     .plugin.name = "PipeWire output plugin",
-    .plugin.descr = "This is a new PipeWire plugin",
+    //.plugin.descr = "This is a new PipeWire plugin",
     .plugin.copyright =
         "PulseAudio output plugin for DeaDBeeF Player\n"
         "Copyright (C) 2020 Nicolai Syvertsen <saivert@saivert.com>\n"
