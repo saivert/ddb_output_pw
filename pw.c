@@ -272,6 +272,7 @@ static int ddbpw_init(void)
                 PW_KEY_NODE_NAME, application_title,
                 PW_KEY_APP_NAME, application_title,
                 PW_KEY_APP_ID, application_id,
+                PW_KEY_APP_ICON_NAME, "deadbeef",
                 PW_KEY_MEDIA_TYPE, "Audio",
                 PW_KEY_MEDIA_CATEGORY, "Playback",
                 PW_KEY_MEDIA_ROLE, "Music",
