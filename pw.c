@@ -147,6 +147,7 @@ static void on_process(void *userdata)
         buf->datas[0].chunk->stride = 1;
         buf->datas[0].chunk->size = bytesread;
         pw_stream_queue_buffer(data->stream, b);
+        if (bytesread <= 0) pw_stream_flush(data->stream, 0);
     } else  {
         deadbeef->mutex_lock(mutex);
         pw_loop_invoke(pw_thread_loop_get_loop(data->loop), _apply_format, 1, NULL, 0, false, NULL);
