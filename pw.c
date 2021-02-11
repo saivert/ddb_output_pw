@@ -169,9 +169,9 @@ static void on_state_changed(void *_data, enum pw_stream_state old,
 }
 
 static void on_control_info(void *data, uint32_t id, const struct pw_stream_control *control) {
+    #ifdef DDBPW_DEBUG
     int i;
 
-    #ifdef DDBPW_DEBUG
     fprintf(stderr, "PipeWire: Control %s", control->name);
     for (i = 0; i < control->n_values; i++) {
         fprintf(stderr, " value[%d] = %f", i, control->values[i]);
