@@ -58,7 +58,7 @@ static const char application_id[] = "music.deadbeef.player";
 static char *tfbytecode;
 
 static ddb_waveformat_t requested_fmt;
-static int state=OUTPUT_STATE_STOPPED;
+static ddb_playback_state_t state=DDB_PLAYBACK_STATE_STOPPED;
 static uintptr_t mutex;
 static int _setformat_requested;
 
@@ -163,7 +163,7 @@ static void on_state_changed(void *_data, enum pw_stream_state old,
     if (_setformat_requested)
         return;
 
-    if (pwstate == PW_STREAM_STATE_ERROR || (state == OUTPUT_STATE_PLAYING && pwstate == PW_STREAM_STATE_UNCONNECTED ) ) {
+    if (pwstate == PW_STREAM_STATE_ERROR || (state == DDB_PLAYBACK_STATE_PLAYING && pwstate == PW_STREAM_STATE_UNCONNECTED ) ) {
         log_err("PipeWire: Stream error: %s\n", error);
     }
 }
@@ -248,7 +248,7 @@ static int ddbpw_init(void)
 
     my_pw_init();
 
-    state = OUTPUT_STATE_STOPPED;
+    state = DDB_PLAYBACK_STATE_STOPPED;
     _setformat_requested = 0;
 
     if (requested_fmt.samplerate != 0) {
@@ -312,7 +312,7 @@ static int ddbpw_free(void)
 {
     trace("ddbpw_free\n");
 
-    state = OUTPUT_STATE_STOPPED;
+    state = DDB_PLAYBACK_STATE_STOPPED;
     if (!data.loop) {
         return 0;
     }
@@ -563,7 +563,7 @@ static int
 ddbpw_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
     switch (id) {
     case DB_EV_SONGSTARTED:
-        if (state == OUTPUT_STATE_PLAYING) {
+        if (state == DDB_PLAYBACK_STATE_PLAYING) {
             pw_thread_loop_lock(data.loop);
             do_update_media_props(((ddb_event_track_t *)ctx)->track, NULL);
             pw_thread_loop_unlock(data.loop);
