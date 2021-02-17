@@ -572,10 +572,14 @@ ddbpw_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
     case DB_EV_VOLUMECHANGED:
         if (data.stream && plugin.has_volume)
         {
-            float vol;
-            vol = deadbeef->volume_get_amp();
+            float vol[SPA_AUDIO_MAX_CHANNELS], plvol;
+            int i;
+            plvol = deadbeef->volume_get_amp();
+            for (i = 0; i < plugin.fmt.channels; i++) {
+                vol[i] = plvol;
+            }
             pw_thread_loop_lock(data.loop);
-            pw_stream_set_control(data.stream, SPA_PROP_channelVolumes, 1, &vol, 0);
+            pw_stream_set_control(data.stream, SPA_PROP_channelVolumes, plugin.fmt.channels, vol, 0);
             pw_thread_loop_unlock(data.loop);
         }
         break;
