@@ -747,8 +747,8 @@ static DB_output_t plugin =
     .plugin.name = "PipeWire output plugin",
     //.plugin.descr = "This is a new PipeWire plugin",
     .plugin.copyright =
-        "PulseAudio output plugin for DeaDBeeF Player\n"
-        "Copyright (C) 2020 Nicolai Syvertsen <saivert@saivert.com>\n"
+        "Pipewire output plugin for DeaDBeeF Player\n"
+        "Copyright (C) 2020-2021 Nicolai Syvertsen <saivert@saivert.com>\n"
         "\n"
         "This program is free software; you can redistribute it and/or\n"
         "modify it under the terms of the GNU General Public License\n"
