@@ -61,6 +61,7 @@ static ddb_waveformat_t requested_fmt;
 static ddb_playback_state_t state=DDB_PLAYBACK_STATE_STOPPED;
 static uintptr_t mutex;
 static int _setformat_requested;
+static int _gotfirstvolumeupdate;
 
 static struct spa_pod * makeformat();
 
@@ -155,6 +156,28 @@ static void on_process(void *userdata)
     }
 }
 
+static void
+set_volume(int dolock) {
+    if (data.stream) {
+        float plvol;
+        float vol[SPA_AUDIO_MAX_CHANNELS];
+        int i;
+
+        if (plugin.has_volume) {
+            plvol = deadbeef->volume_get_amp();
+        } else {
+            plvol = 1.0f;
+        }
+        for (i = 0; i < plugin.fmt.channels; i++) {
+            vol[i] = plvol;
+        }
+
+        if (dolock) pw_thread_loop_lock(data.loop);
+        pw_stream_set_control(data.stream, SPA_PROP_channelVolumes, plugin.fmt.channels, vol, 0);
+        if (dolock) pw_thread_loop_unlock(data.loop);
+    }
+}
+
 static void on_state_changed(void *_data, enum pw_stream_state old,
                              enum pw_stream_state pwstate, const char *error)
 {
@@ -168,7 +191,7 @@ static void on_state_changed(void *_data, enum pw_stream_state old,
     }
 }
 
-static void on_control_info(void *data, uint32_t id, const struct pw_stream_control *control) {
+static void on_control_info(void *_data, uint32_t id, const struct pw_stream_control *control) {
     #ifdef DDBPW_DEBUG
     int i;
 
@@ -179,8 +202,19 @@ static void on_control_info(void *data, uint32_t id, const struct pw_stream_cont
     fprintf(stderr, "\n");
     #endif
 
-    if (!strcmp(control->name, "Channel Volumes") && plugin.has_volume) {
-        deadbeef->volume_set_amp(control->values[0]);
+    // We need to ignore the first volume update which is sent by pipewire to restore volume
+    // This conflicts with the saved volume in DeaDBeeF
+    // This is because the volume isn't updated when user adjusts volume while playback is stopped,
+    // for this to work we would need to connect a dummy stream just to do this.
+    if (!strcmp(control->name, "Channel Volumes")) {
+        if (_gotfirstvolumeupdate && plugin.has_volume) {
+            deadbeef->volume_set_amp(control->values[0]);
+        } else {
+            trace("PipeWire: ignored volume update\n");
+            // Instead we set our own volume here
+            _gotfirstvolumeupdate=1; // Must be done before call to set_volume to avoid recursion
+            set_volume(0);
+        }
     }
 }
 
@@ -313,6 +347,7 @@ static int ddbpw_free(void)
     trace("ddbpw_free\n");
 
     state = DDB_PLAYBACK_STATE_STOPPED;
+    _gotfirstvolumeupdate = 0;
     if (!data.loop) {
         return 0;
     }
@@ -570,21 +605,11 @@ ddbpw_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
         }
         break;
     case DB_EV_VOLUMECHANGED:
-        if (data.stream && plugin.has_volume)
-        {
-            float vol[SPA_AUDIO_MAX_CHANNELS], plvol;
-            int i;
-            plvol = deadbeef->volume_get_amp();
-            for (i = 0; i < plugin.fmt.channels; i++) {
-                vol[i] = plvol;
-            }
-            pw_thread_loop_lock(data.loop);
-            pw_stream_set_control(data.stream, SPA_PROP_channelVolumes, plugin.fmt.channels, vol, 0);
-            pw_thread_loop_unlock(data.loop);
-        }
+        set_volume(1);
         break;
     case DB_EV_CONFIGCHANGED:
         plugin.has_volume = deadbeef->conf_get_int(CONFSTR_DDBPW_VOLUMECONTROL, DDBPW_DEFAULT_VOLUMECONTROL);
+        set_volume(1);
         break;
     }
     return 0;
