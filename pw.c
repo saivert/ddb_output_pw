@@ -181,7 +181,7 @@ set_volume(int dolock) {
 static void on_state_changed(void *_data, enum pw_stream_state old,
                              enum pw_stream_state pwstate, const char *error)
 {
-    trace("PipeWire: Stream state %s\n", pw_stream_state_as_string(state));
+    trace("PipeWire: Stream state %s\n", pw_stream_state_as_string(pwstate));
 
     if (_setformat_requested)
         return;
