@@ -183,6 +183,10 @@ static void on_state_changed(void *_data, enum pw_stream_state old,
 {
     trace("PipeWire: Stream state %s\n", pw_stream_state_as_string(pwstate));
 
+    if (pwstate == PW_STREAM_STATE_STREAMING && old == PW_STREAM_STATE_PAUSED) {
+        set_volume(0);
+    }
+
     if (_setformat_requested)
         return;
 
@@ -213,7 +217,6 @@ static void on_control_info(void *_data, uint32_t id, const struct pw_stream_con
             trace("PipeWire: ignored volume update\n");
             // Instead we set our own volume here
             _gotfirstvolumeupdate=1; // Must be done before call to set_volume to avoid recursion
-            set_volume(0);
         }
     }
 }
