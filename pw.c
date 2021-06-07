@@ -506,7 +506,7 @@ static int ddbpw_play(void)
 
     deadbeef->mutex_lock(mutex);
 
-    _initialvol = deadbeef->volume_get_amp();
+    _initialvol = plugin.has_volume ? deadbeef->volume_get_amp() : 1.0f;
 
     if (!data.loop) {
         ddbpw_init();
