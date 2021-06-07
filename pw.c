@@ -158,7 +158,7 @@ static void on_process(void *userdata)
 
 static void
 set_volume(int dolock, float volume) {
-    if (data.stream) {
+    if (data.stream && state != DDB_PLAYBACK_STATE_STOPPED) {
         float vol[SPA_AUDIO_MAX_CHANNELS];
         int i;
 
