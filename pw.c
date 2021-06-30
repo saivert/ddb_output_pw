@@ -319,7 +319,7 @@ static int ddbpw_init(void)
 
     if (!data.stream) {
         log_err("PipeWire: Error creating stream!");
-        return -1;
+        return OP_ERROR_INTERNAL;
     }
 
 
@@ -488,7 +488,7 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
                   if (pw_properties_get(pw_stream_get_properties(data.stream), PW_KEY_REMOTE_NAME)) {
                       log_err("PipeWire: Please check if remote daemon name is valid and daemon is up.\n")
                   }
-                  return -1;
+                  return OP_ERROR_INTERNAL;
               };
 
 
