@@ -451,6 +451,7 @@ static struct spa_pod * makeformat(ddb_waveformat_t *fmt)
     struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
 
     struct spa_audio_info_raw rawinfo =  SPA_AUDIO_INFO_RAW_INIT(
+                .flags = 0,
                 .format = pwfmt,
                 .channels = fmt->channels,
                 .rate = fmt->samplerate );
