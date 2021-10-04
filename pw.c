@@ -307,6 +307,7 @@ static int ddbpw_init(void)
                 PW_KEY_NODE_TARGET, (!strcmp(dev, "default")) ? NULL: dev,
                 NULL);
     do_update_media_props(NULL, props);
+    pw_properties_setf(props, PW_KEY_NODE_RATE, "1/%u", plugin.fmt.samplerate);
 
     pw_properties_update_string(props, propstr, strlen(propstr));
 
@@ -476,6 +477,11 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
 
     const struct spa_pod *params[1];
     params[0] = makeformat(&plugin.fmt);
+
+    struct pw_properties *props = pw_properties_new(NULL, NULL);
+    pw_properties_setf(props, PW_KEY_NODE_RATE, "1/%u", plugin.fmt.samplerate);
+    pw_stream_update_properties(data.stream, &props->dict);
+    pw_properties_free(props);
 
     if (0 != pw_stream_connect(data.stream,
               PW_DIRECTION_OUTPUT,
