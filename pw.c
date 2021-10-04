@@ -182,6 +182,7 @@ static void on_state_changed(void *_data, enum pw_stream_state old,
 
     if (pwstate == PW_STREAM_STATE_ERROR || (state == DDB_PLAYBACK_STATE_PLAYING && pwstate == PW_STREAM_STATE_UNCONNECTED ) ) {
         log_err("PipeWire: Stream error: %s\n", error);
+        deadbeef->sendmessage(DB_EV_STOP, 0, 0, 0);
     }
 }
 
