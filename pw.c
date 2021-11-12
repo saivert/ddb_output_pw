@@ -763,7 +763,8 @@ ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void 
 
 static const char settings_dlg[] =
     "property \"PipeWire remote daemon name (empty for default)\" entry " CONFSTR_DDBPW_REMOTENAME " " STR(DDBPW_DEFAULT_REMOTENAME) ";\n"
-    "property \"Custom properties (overrides existing ones)\" entry " CONFSTR_DDBPW_PROPS " \"\" ;\n"
+    "property \"Custom properties (overrides existing ones):\" label l;\n"
+    "property \"\" entry " CONFSTR_DDBPW_PROPS " \"\" ;\n"
     "property \"Use PipeWire volume control\" checkbox " CONFSTR_DDBPW_VOLUMECONTROL " " STR(DDBPW_DEFAULT_VOLUMECONTROL) ";\n";
 
 
