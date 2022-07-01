@@ -505,12 +505,18 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
     return OP_ERROR_SUCCESS;
 }
 
+static void update_has_volume()
+{
+    plugin.has_volume = deadbeef->conf_get_int(CONFSTR_DDBPW_VOLUMECONTROL, DDBPW_DEFAULT_VOLUMECONTROL);
+}
+
 static int ddbpw_play(void)
 {
     trace ("ddbpw_play\n");
 
     deadbeef->mutex_lock(mutex);
 
+    update_has_volume();
     _initialvol = plugin.has_volume ? deadbeef->volume_get_amp() : 1.0f;
 
     if (!data.loop) {
@@ -611,7 +617,7 @@ ddbpw_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
         }
         break;
     case DB_EV_CONFIGCHANGED:
-        plugin.has_volume = deadbeef->conf_get_int(CONFSTR_DDBPW_VOLUMECONTROL, DDBPW_DEFAULT_VOLUMECONTROL);
+        update_has_volume();
         if (plugin.has_volume) {
             set_volume(1, deadbeef->volume_get_amp());
         } else {
