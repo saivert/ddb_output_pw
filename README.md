@@ -2,6 +2,15 @@
 
 This is a draft for a PipeWire plugin for DeaDBeeF Music Player
 
+Build using meson:
+
+    $ meson setup builddir
+    $ meson compile -C builddir
+
+Then install:
+
+    $ cp builddir/ddb_out_pw.so ~/.local/lib64/deadbeef
+
 
 New plugin settings UI:
 
