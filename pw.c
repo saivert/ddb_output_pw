@@ -27,7 +27,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
-#include <deadbeef/deadbeef.h>
+#include "../../deadbeef.h"
 
 #define OP_ERROR_SUCCESS 0
 #define OP_ERROR_INTERNAL -1
