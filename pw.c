@@ -63,9 +63,6 @@ static uintptr_t mutex;
 static int _setformat_requested;
 static float _initialvol;
 
-static struct spa_pod * makeformat();
-
-
 struct data {
     struct pw_thread_loop *loop;
     struct pw_stream *stream;
@@ -74,41 +71,44 @@ struct data {
 
 struct data data = { 0, };
 
-static int ddbpw_init();
+static int ddbpw_init(void);
 
-static int ddbpw_free();
+static int ddbpw_free(void);
 
 static int ddbpw_setformat(ddb_waveformat_t *fmt);
 
-static int ddbpw_play();
+static int ddbpw_play(void);
 
-static int ddbpw_stop();
+static int ddbpw_stop(void);
 
-static int ddbpw_pause();
+static int ddbpw_pause(void);
 
-static int ddbpw_unpause();
+static int ddbpw_unpause(void);
 
 static int ddbpw_set_spec(ddb_waveformat_t *fmt);
 
-static void my_pw_init() {
-    if (data.pw_has_init || state != DDB_PLAYBACK_STATE_STOPPED) return;
+static void my_pw_init(void) {
+    if (data.pw_has_init || state != DDB_PLAYBACK_STATE_STOPPED) {
+        return;
+    }
     pw_init(NULL, NULL);
     data.pw_has_init = 1;
 }
 
-static void my_pw_deinit() {
-    if (!data.pw_has_init || state != DDB_PLAYBACK_STATE_STOPPED) return;
+static void my_pw_deinit(void) {
+    if (!data.pw_has_init || state != DDB_PLAYBACK_STATE_STOPPED) {
+        return;
+    }
     pw_deinit();
     data.pw_has_init = 0;
 }
 
 static int _apply_format(struct spa_loop *loop,
-				  bool async,
-				  uint32_t seq,
-				  const void *_data,
-				  size_t size,
-				  void *user_data)
-{
+        bool async,
+        uint32_t seq,
+        const void *_data,
+        size_t size,
+        void *user_data) {
     deadbeef->mutex_lock(mutex);
 
     pw_stream_disconnect(data.stream);
@@ -121,12 +121,11 @@ static int _apply_format(struct spa_loop *loop,
     return 0;
 }
 
-static void on_process(void *userdata)
-{
+static void on_process(void *userdata) {
     struct data *data = userdata;
-    struct pw_buffer *b;
-    struct spa_buffer *buf;
-    int16_t *dst;
+    struct pw_buffer *b = NULL;
+    struct spa_buffer *buf = NULL;
+    int16_t *dst = NULL;
 
     if (!_setformat_requested) {
         if ((b = pw_stream_dequeue_buffer(data->stream)) == NULL) {
@@ -135,8 +134,9 @@ static void on_process(void *userdata)
         }
 
         buf = b->buffer;
-        if ((dst = buf->datas[0].data) == NULL)
+        if ((dst = buf->datas[0].data) == NULL) {
             return;
+        }
 
         int len = 4096;
         int bytesread=0;
@@ -148,7 +148,9 @@ static void on_process(void *userdata)
         buf->datas[0].chunk->stride = 1;
         buf->datas[0].chunk->size = bytesread;
         pw_stream_queue_buffer(data->stream, b);
-        if (bytesread <= 0) pw_stream_flush(data->stream, 0);
+        if (bytesread <= 0) {
+            pw_stream_flush(data->stream, 0);
+        }
     } else  {
         deadbeef->mutex_lock(mutex);
         pw_loop_invoke(pw_thread_loop_get_loop(data->loop), _apply_format, 1, NULL, 0, false, NULL);
@@ -159,26 +161,29 @@ static void on_process(void *userdata)
 static void
 set_volume(int dolock, float volume) {
     if (data.stream && state != DDB_PLAYBACK_STATE_STOPPED) {
-        float vol[SPA_AUDIO_MAX_CHANNELS];
-        int i;
+        float vol[SPA_AUDIO_MAX_CHANNELS] = {0};
 
-        for (i = 0; i < plugin.fmt.channels; i++) {
+        for (int i = 0; i < plugin.fmt.channels; i++) {
             vol[i] = volume;
         }
 
-        if (dolock) pw_thread_loop_lock(data.loop);
+        if (dolock) {
+            pw_thread_loop_lock(data.loop);
+        }
         pw_stream_set_control(data.stream, SPA_PROP_channelVolumes, plugin.fmt.channels, vol, 0);
-        if (dolock) pw_thread_loop_unlock(data.loop);
+        if (dolock) {
+            pw_thread_loop_unlock(data.loop);
+        }
     }
 }
 
 static void on_state_changed(void *_data, enum pw_stream_state old,
-                             enum pw_stream_state pwstate, const char *error)
-{
+        enum pw_stream_state pwstate, const char *error) {
     trace("PipeWire: Stream state %s\n", pw_stream_state_as_string(pwstate));
 
-    if (_setformat_requested)
+    if (_setformat_requested) {
         return;
+    }
 
     if (pwstate == PW_STREAM_STATE_ERROR || (state == DDB_PLAYBACK_STATE_PLAYING && pwstate == PW_STREAM_STATE_UNCONNECTED ) ) {
         log_err("PipeWire: Stream error: %s\n", error);
@@ -187,25 +192,24 @@ static void on_state_changed(void *_data, enum pw_stream_state old,
 }
 
 static void on_control_info(void *_data, uint32_t id, const struct pw_stream_control *control) {
-    #ifdef DDBPW_DEBUG
-    int i;
+#ifdef DDBPW_DEBUG
 
     fprintf(stderr, "PipeWire: Control %s", control->name);
-    for (i = 0; i < control->n_values; i++) {
+    for (int i = 0; i < control->n_values; i++) {
         fprintf(stderr, " value[%d] = %f", i, control->values[i]);
     }
     fprintf(stderr, "\n");
-    #endif
+#endif
 
     if (id == SPA_PROP_channelVolumes && plugin.has_volume) {
         deadbeef->volume_set_amp(control->values[0]);
     }
 }
 
-static void on_param_changed(void *userdata, uint32_t id, const struct spa_pod *param)
-{
-    if (id != SPA_PARAM_Format || param == NULL)
+static void on_param_changed(void *userdata, uint32_t id, const struct spa_pod *param) {
+    if (id != SPA_PARAM_Format || param == NULL) {
         return;
+    }
 
     if (plugin.has_volume) {
         set_volume(0, _initialvol);
@@ -221,58 +225,61 @@ static const struct pw_stream_events stream_events = {
 };
 
 static void do_update_media_props(DB_playItem_t *track, struct pw_properties *props) {
-    int rc, notrackgiven=0;
+    int rc = 0, notrackgiven=0;
 
     ddb_tf_context_t ctx = {
         ._size = sizeof(ddb_tf_context_t),
         .flags = DDB_TF_CONTEXT_NO_DYNAMIC,
         .plt = NULL,
-        .iter = PL_MAIN};
+        .iter = PL_MAIN
+    };
 
     if (!track) {
         track = deadbeef->streamer_get_playing_track();
         notrackgiven = 1;
+        return;
     }
-    if (track) {
-        struct spa_dict_item items[3];
-        int n_items=0;
 
-        char buf[1000];
-        const char *artist, *title;
+    struct spa_dict_item items[3] = {0};
+    int n_items = 0;
 
-        ctx.it = track;
-        if (deadbeef->tf_eval(&ctx, tfbytecode, buf, sizeof(buf)) > 0) {
-            items[n_items++] = SPA_DICT_ITEM_INIT(PW_KEY_MEDIA_NAME, buf);
-        }
+    char buf[1000] = {0};
+    const char *artist = NULL;
+    const char *title = NULL;
 
-        deadbeef->pl_lock();
-        artist = deadbeef->pl_find_meta(track, "artist");
-        title = deadbeef->pl_find_meta(track, "title");
+    ctx.it = track;
+    if (deadbeef->tf_eval(&ctx, tfbytecode, buf, sizeof(buf)) > 0) {
+        items[n_items++] = SPA_DICT_ITEM_INIT(PW_KEY_MEDIA_NAME, buf);
+    }
 
-        if (artist) {
-            items[n_items++] = SPA_DICT_ITEM_INIT(PW_KEY_MEDIA_ARTIST, artist);
-        }
+    deadbeef->pl_lock();
+    artist = deadbeef->pl_find_meta(track, "artist");
+    title = deadbeef->pl_find_meta(track, "title");
 
-        if (title) {
-            items[n_items++] = SPA_DICT_ITEM_INIT(PW_KEY_MEDIA_TITLE, title);
-        }
+    if (artist) {
+        items[n_items++] = SPA_DICT_ITEM_INIT(PW_KEY_MEDIA_ARTIST, artist);
+    }
 
-        if (props) {
-            pw_properties_update(props, &SPA_DICT_INIT(items, n_items));
-        } else {
-            rc = pw_stream_update_properties(data.stream, &SPA_DICT_INIT(items, n_items));
-            if (rc < 0) trace("PipeWire: Error updating properties!\n");
-        }
+    if (title) {
+        items[n_items++] = SPA_DICT_ITEM_INIT(PW_KEY_MEDIA_TITLE, title);
+    }
 
-        deadbeef->pl_unlock();
-        if (notrackgiven) deadbeef->pl_item_unref(track);
+    if (props) {
+        pw_properties_update(props, &SPA_DICT_INIT(items, n_items));
     } else {
-        /* do nothing */
+        rc = pw_stream_update_properties(data.stream, &SPA_DICT_INIT(items, n_items));
+        if (rc < 0) {
+            trace("PipeWire: Error updating properties!\n");
+        }
+    }
+
+    deadbeef->pl_unlock();
+    if (notrackgiven) {
+        deadbeef->pl_item_unref(track);
     }
 }
 
-static int ddbpw_init(void)
-{
+static int ddbpw_init(void) {
     trace ("ddbpw_init\n");
 
     my_pw_init();
@@ -284,12 +291,11 @@ static int ddbpw_init(void)
         memcpy (&plugin.fmt, &requested_fmt, sizeof (ddb_waveformat_t));
     }
 
-
     data.loop = pw_thread_loop_new("ddb_out_pw", NULL);
 
-    char dev[256];
-    char remote[256];
-    char propstr[256];
+    char dev[256] = {0};
+    char remote[256] = {0};
+    char propstr[256] = {0};
     deadbeef->conf_get_str (PW_PLUGIN_ID "_soundcard", "default", dev, sizeof(dev));
 
     deadbeef->conf_get_str(CONFSTR_DDBPW_REMOTENAME, DDBPW_DEFAULT_REMOTENAME, remote, sizeof(remote));
@@ -297,16 +303,16 @@ static int ddbpw_init(void)
     deadbeef->conf_get_str(CONFSTR_DDBPW_PROPS, "", propstr, sizeof(propstr));
 
     struct pw_properties *props = pw_properties_new(
-                PW_KEY_REMOTE_NAME, (remote[0] ? remote: NULL),
-                PW_KEY_NODE_NAME, application_title,
-                PW_KEY_APP_NAME, application_title,
-                PW_KEY_APP_ID, application_id,
-                PW_KEY_APP_ICON_NAME, "deadbeef",
-                PW_KEY_MEDIA_TYPE, "Audio",
-                PW_KEY_MEDIA_CATEGORY, "Playback",
-                PW_KEY_MEDIA_ROLE, "Music",
-                PW_KEY_NODE_TARGET, (!strcmp(dev, "default")) ? NULL: dev,
-                NULL);
+            PW_KEY_REMOTE_NAME, (remote[0] ? remote: NULL),
+            PW_KEY_NODE_NAME, application_title,
+            PW_KEY_APP_NAME, application_title,
+            PW_KEY_APP_ID, application_id,
+            PW_KEY_APP_ICON_NAME, "deadbeef",
+            PW_KEY_MEDIA_TYPE, "Audio",
+            PW_KEY_MEDIA_CATEGORY, "Playback",
+            PW_KEY_MEDIA_ROLE, "Music",
+            PW_KEY_NODE_TARGET, (!strcmp(dev, "default")) ? NULL: dev,
+            NULL);
     do_update_media_props(NULL, props);
     pw_properties_setf(props, PW_KEY_NODE_RATE, "1/%u", plugin.fmt.samplerate);
 
@@ -328,8 +334,7 @@ static int ddbpw_init(void)
     return OP_ERROR_SUCCESS;
 }
 
-static int ddbpw_setformat (ddb_waveformat_t *fmt)
-{
+static int ddbpw_setformat (ddb_waveformat_t *fmt) {
     trace("Pipewire: setformat called!\n");
     deadbeef->mutex_lock(mutex);
     _setformat_requested = 1;
@@ -338,8 +343,7 @@ static int ddbpw_setformat (ddb_waveformat_t *fmt)
     return 0;
 }
 
-static int ddbpw_free(void)
-{
+static int ddbpw_free(void) {
     trace("ddbpw_free\n");
 
     state = DDB_PLAYBACK_STATE_STOPPED;
@@ -365,64 +369,63 @@ static void set_channel_map(int channels, struct spa_audio_info_raw* audio_info)
     /* Following http://www.microsoft.com/whdc/device/audio/multichaud.mspx#EKLAC */
 
     switch (channels) {
-        case 1:
-            audio_info->position[0] = SPA_AUDIO_CHANNEL_MONO;
-            return;
+    case 1:
+        audio_info->position[0] = SPA_AUDIO_CHANNEL_MONO;
+        return;
 
-        case 18:
-            audio_info->position[15] = SPA_AUDIO_CHANNEL_TRL;
-            audio_info->position[16] = SPA_AUDIO_CHANNEL_TRC;
-            audio_info->position[17] = SPA_AUDIO_CHANNEL_TRR;
-            /* Fall through */
+    case 18:
+        audio_info->position[15] = SPA_AUDIO_CHANNEL_TRL;
+        audio_info->position[16] = SPA_AUDIO_CHANNEL_TRC;
+        audio_info->position[17] = SPA_AUDIO_CHANNEL_TRR;
+        /* Fall through */
 
-        case 15:
-            audio_info->position[12] = SPA_AUDIO_CHANNEL_TFL;
-            audio_info->position[13] = SPA_AUDIO_CHANNEL_TFC;
-            audio_info->position[14] = SPA_AUDIO_CHANNEL_TFR;
-            /* Fall through */
+    case 15:
+        audio_info->position[12] = SPA_AUDIO_CHANNEL_TFL;
+        audio_info->position[13] = SPA_AUDIO_CHANNEL_TFC;
+        audio_info->position[14] = SPA_AUDIO_CHANNEL_TFR;
+        /* Fall through */
 
-        case 12:
-            audio_info->position[11] = SPA_AUDIO_CHANNEL_TC;
-            /* Fall through */
+    case 12:
+        audio_info->position[11] = SPA_AUDIO_CHANNEL_TC;
+        /* Fall through */
 
-        case 11:
-            audio_info->position[9] = SPA_AUDIO_CHANNEL_SL;
-            audio_info->position[10] = SPA_AUDIO_CHANNEL_SR;
-            /* Fall through */
+    case 11:
+        audio_info->position[9] = SPA_AUDIO_CHANNEL_SL;
+        audio_info->position[10] = SPA_AUDIO_CHANNEL_SR;
+        /* Fall through */
 
-        case 9:
-            audio_info->position[8] = SPA_AUDIO_CHANNEL_RC;
-            /* Fall through */
+    case 9:
+        audio_info->position[8] = SPA_AUDIO_CHANNEL_RC;
+        /* Fall through */
 
-        case 8:
-            audio_info->position[6] = SPA_AUDIO_CHANNEL_FLC;
-            audio_info->position[7] = SPA_AUDIO_CHANNEL_FRC;
-            /* Fall through */
+    case 8:
+        audio_info->position[6] = SPA_AUDIO_CHANNEL_FLC;
+        audio_info->position[7] = SPA_AUDIO_CHANNEL_FRC;
+        /* Fall through */
 
-        case 6:
-            audio_info->position[4] = SPA_AUDIO_CHANNEL_RL;
-            audio_info->position[5] = SPA_AUDIO_CHANNEL_RR;
-            /* Fall through */
+    case 6:
+        audio_info->position[4] = SPA_AUDIO_CHANNEL_RL;
+        audio_info->position[5] = SPA_AUDIO_CHANNEL_RR;
+        /* Fall through */
 
-        case 4:
-            audio_info->position[3] = SPA_AUDIO_CHANNEL_LFE;
-            /* Fall through */
+    case 4:
+        audio_info->position[3] = SPA_AUDIO_CHANNEL_LFE;
+        /* Fall through */
 
-        case 3:
-            audio_info->position[2] = SPA_AUDIO_CHANNEL_FC;
-            /* Fall through */
+    case 3:
+        audio_info->position[2] = SPA_AUDIO_CHANNEL_FC;
+        /* Fall through */
 
-        case 2:
-            audio_info->position[0] = SPA_AUDIO_CHANNEL_FL;
-            audio_info->position[1] = SPA_AUDIO_CHANNEL_FR;
+    case 2:
+        audio_info->position[0] = SPA_AUDIO_CHANNEL_FL;
+        audio_info->position[1] = SPA_AUDIO_CHANNEL_FR;
 
     }
 }
 
-static struct spa_pod * makeformat(ddb_waveformat_t *fmt)
-{
+static struct spa_pod * makeformat(ddb_waveformat_t *fmt, uint8_t *buffer, size_t buffer_size) {
 
-    enum spa_audio_format pwfmt;
+    enum spa_audio_format pwfmt = 0;
 
     switch (fmt->bps) {
     case 8:
@@ -447,15 +450,15 @@ static struct spa_pod * makeformat(ddb_waveformat_t *fmt)
     };
 
 
-    
-    uint8_t buffer[1024];
-    struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+
+    struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, buffer_size);
 
     struct spa_audio_info_raw rawinfo =  SPA_AUDIO_INFO_RAW_INIT(
-                .flags = 0,
-                .format = pwfmt,
-                .channels = fmt->channels,
-                .rate = fmt->samplerate );
+        .flags = 0,
+        .format = pwfmt,
+        .channels = fmt->channels,
+        .rate = fmt->samplerate
+    );
 
     set_channel_map(fmt->channels, &rawinfo);
 
@@ -463,8 +466,7 @@ static struct spa_pod * makeformat(ddb_waveformat_t *fmt)
 
 }
 
-static int ddbpw_set_spec(ddb_waveformat_t *fmt)
-{
+static int ddbpw_set_spec(ddb_waveformat_t *fmt) {
     memcpy (&plugin.fmt, fmt, sizeof (ddb_waveformat_t));
     if (!plugin.fmt.channels) {
         // generic format
@@ -477,8 +479,11 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
 
     trace ("format %dbit %s %dch %dHz channelmask=%X\n", plugin.fmt.bps, plugin.fmt.is_float ? "float" : "int", plugin.fmt.channels, plugin.fmt.samplerate, plugin.fmt.channelmask);
 
-    const struct spa_pod *params[1];
-    params[0] = makeformat(&plugin.fmt);
+
+    uint8_t spa_buffer[1024];
+    const struct spa_pod *params[1] = {
+        makeformat(&plugin.fmt, spa_buffer, sizeof (spa_buffer))
+    };
 
     struct pw_properties *props = pw_properties_new(NULL, NULL);
     pw_properties_setf(props, PW_KEY_NODE_RATE, "1/%u", plugin.fmt.samplerate);
@@ -486,18 +491,18 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
     pw_properties_free(props);
 
     if (0 != pw_stream_connect(data.stream,
-              PW_DIRECTION_OUTPUT,
-              PW_ID_ANY,
-              PW_STREAM_FLAG_AUTOCONNECT |
-              PW_STREAM_FLAG_MAP_BUFFERS |
-              PW_STREAM_FLAG_RT_PROCESS,
-              params, 1)) {
-                  log_err("PipeWire: Error connecting stream!\n");
-                  if (pw_properties_get(pw_stream_get_properties(data.stream), PW_KEY_REMOTE_NAME)) {
-                      log_err("PipeWire: Please check if remote daemon name is valid and daemon is up.\n")
-                  }
-                  return OP_ERROR_INTERNAL;
-              };
+                PW_DIRECTION_OUTPUT,
+                PW_ID_ANY,
+                PW_STREAM_FLAG_AUTOCONNECT |
+                PW_STREAM_FLAG_MAP_BUFFERS |
+                PW_STREAM_FLAG_RT_PROCESS,
+                params, 1)) {
+        log_err("PipeWire: Error connecting stream!\n");
+        if (pw_properties_get(pw_stream_get_properties(data.stream), PW_KEY_REMOTE_NAME)) {
+            log_err("PipeWire: Please check if remote daemon name is valid and daemon is up.\n")
+        }
+        return OP_ERROR_INTERNAL;
+    };
 
 
     state = DDB_PLAYBACK_STATE_PLAYING;
@@ -505,13 +510,11 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt)
     return OP_ERROR_SUCCESS;
 }
 
-static void update_has_volume()
-{
+static void update_has_volume(void) {
     plugin.has_volume = deadbeef->conf_get_int(CONFSTR_DDBPW_VOLUMECONTROL, DDBPW_DEFAULT_VOLUMECONTROL);
 }
 
-static int ddbpw_play(void)
-{
+static int ddbpw_play(void) {
     trace ("ddbpw_play\n");
 
     deadbeef->mutex_lock(mutex);
@@ -533,19 +536,15 @@ static int ddbpw_play(void)
     return ret;
 }
 
-static int ddbpw_stop(void)
-{
+static int ddbpw_stop(void) {
     ddbpw_free();
 
     return OP_ERROR_SUCCESS;
 }
 
-static int ddbpw_pause(void)
-{
-    if (!data.loop) {
-        if (ddbpw_play() != OP_ERROR_SUCCESS) {
-            return OP_ERROR_INTERNAL;
-        }
+static int ddbpw_pause(void) {
+    if (!data.loop && ddbpw_play() != OP_ERROR_SUCCESS) {
+        return OP_ERROR_INTERNAL;
     }
 
     // set pause state
@@ -557,8 +556,7 @@ static int ddbpw_pause(void)
     return OP_ERROR_SUCCESS;
 }
 
-static int ddbpw_unpause(void)
-{
+static int ddbpw_unpause(void) {
     // unset pause state
     if (state == DDB_PLAYBACK_STATE_PAUSED) {
         state = DDB_PLAYBACK_STATE_PLAYING;
@@ -570,33 +568,29 @@ static int ddbpw_unpause(void)
 }
 
 
-static ddb_playback_state_t ddbpw_get_state(void)
-{
+static ddb_playback_state_t ddbpw_get_state(void) {
     return state;
 }
 
 
 
-static int ddbpw_plugin_start(void)
-{
+static int ddbpw_plugin_start(void) {
     mutex = deadbeef->mutex_create();
 
     tfbytecode = deadbeef->tf_compile("[%artist% - ]%title%");
     return 0;
 }
 
-static int ddbpw_plugin_stop(void)
-{
+static int ddbpw_plugin_stop(void) {
     deadbeef->mutex_free(mutex);
     deadbeef->tf_free(tfbytecode);
     return 0;
 }
 
-DB_plugin_t * ddb_out_pw_load(DB_functions_t *api)
-{
+DB_plugin_t * ddb_out_pw_load(DB_functions_t *api) {
     deadbeef = api;
     snprintf(plugin_description, sizeof(plugin_description),
-        "This is a PipeWire plugin.\nLinked to library version %s\n", pw_get_library_version());
+            "This is a PipeWire plugin.\nLinked to library version %s\n", pw_get_library_version());
     plugin.plugin.descr = plugin_description;
     return DB_PLUGIN (&plugin);
 }
@@ -634,38 +628,36 @@ struct enum_card_userdata {
 };
 
 static void registry_event_global(void *data, uint32_t id,
-                                  uint32_t permissions, const char *type, uint32_t version,
-                                  const struct spa_dict *props)
-{
+        uint32_t permissions, const char *type, uint32_t version,
+        const struct spa_dict *props) {
     struct enum_card_userdata *enumuserdata = (struct enum_card_userdata *)data;
 
-    if (!strcmp(type, PW_TYPE_INTERFACE_Node) && props)
-    {
-        const char *media_class;
-        media_class = spa_dict_lookup(props, PW_KEY_MEDIA_CLASS);
+    if (!strcmp(type, PW_TYPE_INTERFACE_Node) && props) {
+        const char *media_class = spa_dict_lookup(props, PW_KEY_MEDIA_CLASS);
 
-        if (media_class && (!strcmp(media_class, "Audio/Sink") || !strcmp(media_class, "Audio/Duplex")))
-        {
-            const char *desc, *name;
-            desc = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);
-            name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
+        if (media_class && (!strcmp(media_class, "Audio/Sink") || !strcmp(media_class, "Audio/Duplex"))) {
+            const char *desc = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);
+            const char *name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
+            char name_buf[64];
             if (!name) {
-                char buf[64];
-                snprintf(buf, sizeof(buf), "%d", id);
-                name = buf;
+                snprintf(name_buf, sizeof(name_buf), "%d", id);
+                name = name_buf;
             }
 
-            if (!desc) desc = name;
+            if (!desc) {
+                desc = name;
+            }
 
             // Avoid crazy long descriptions, they grow the GTK dropdown box in deadbeef GUI
             // Truncate with a middle ellipsis so we catch output port names that are always at the end
-            char buf[256];
+            char buf[256] = { 0 };
             if (strlen(desc) > 80) {
                 strncpy (buf, desc, 38);
                 strcat(buf, "...");
                 strcat (buf, desc+strlen(desc)-38);
-                
-            } else {
+
+            }
+            else {
                 strcpy(buf, desc ? desc : "");
             }
 
@@ -686,74 +678,78 @@ struct donedata {
 };
 
 void core_event_done(void *object, uint32_t id, int seq) {
-        struct donedata *donedata = (struct donedata *)object;
-        if (id == PW_ID_CORE && seq == donedata->pending) {
-                donedata->done = 1;
-                pw_main_loop_quit(donedata->loop);
-        }
+    struct donedata *donedata = (struct donedata *)object;
+    if (id == PW_ID_CORE && seq == donedata->pending) {
+        donedata->done = 1;
+        pw_main_loop_quit(donedata->loop);
+    }
 }
 
-static int roundtrip(struct pw_core *core, struct pw_main_loop *loop)
-{
-        struct spa_hook core_listener;
-        struct donedata donedata = {0,0, loop};
+static int roundtrip(struct pw_core *core, struct pw_main_loop *loop) {
+    struct spa_hook core_listener;
+    struct donedata donedata = {0,0, loop};
 
-        const struct pw_core_events core_events = {
-                PW_VERSION_CORE_EVENTS,
-                .done = core_event_done,
-        };
+    const struct pw_core_events core_events = {
+        PW_VERSION_CORE_EVENTS,
+        .done = core_event_done,
+    };
 
-        spa_zero(core_listener);
-        pw_core_add_listener(core, &core_listener,
-                                 &core_events, &donedata);
+    spa_zero(core_listener);
+    pw_core_add_listener(core, &core_listener,
+            &core_events, &donedata);
 
-        donedata.pending = pw_core_sync(core, PW_ID_CORE, 0);
+    donedata.pending = pw_core_sync(core, PW_ID_CORE, 0);
 
-        while (!donedata.done) {
-                pw_main_loop_run(loop);
-        }
-        spa_hook_remove(&core_listener);
-        return 0;
+    while (!donedata.done) {
+        pw_main_loop_run(loop);
+    }
+    spa_hook_remove(&core_listener);
+    return 0;
 }
 
 static void
-ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void *), void *userdata)
-{
-    struct pw_main_loop *loop;
-    struct pw_context *context;
-    struct pw_core *core;
-    struct pw_registry *registry;
-    struct spa_hook registry_listener;
-    struct enum_card_userdata enumuserdata;
+ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void *), void *userdata) {
+    struct pw_main_loop *loop = NULL;
+    struct pw_context *context = NULL;
+    struct pw_core *core = NULL;
+    struct pw_registry *registry = NULL;
+    struct spa_hook registry_listener = {0};
+    struct enum_card_userdata enumuserdata = {0};
 
     my_pw_init();
 
     loop = pw_main_loop_new(NULL /* properties */);
     context = pw_context_new(pw_main_loop_get_loop(loop),
-                             NULL /* properties */,
-                             0 /* user_data size */);
-    if (!context) return;
+            NULL /* properties */,
+            0 /* user_data size */);
+    if (!context) {
+        return;
+    }
 
-    char remote[256];
+    char remote[256] = { 0 };
     deadbeef->conf_get_str(CONFSTR_DDBPW_REMOTENAME, DDBPW_DEFAULT_REMOTENAME, remote, sizeof(remote));
 
     core = pw_context_connect(context,
-                                pw_properties_new(
-                                PW_KEY_REMOTE_NAME,  (remote[0] ? remote: NULL),
-                                NULL),
-                              0 /* user_data size */);
-    if (!core) return;
+            pw_properties_new(
+                PW_KEY_REMOTE_NAME,  (remote[0] ? remote: NULL),
+                NULL),
+            0 /* user_data size */);
+    if (!core) {
+        return;
+    }
 
     registry = pw_core_get_registry(core, PW_VERSION_REGISTRY,
-                                    0 /* user_data size */);
-    if (!registry) return;
+            0 /* user_data size */);
+    if (!registry) {
+        return;
+    }
 
     enumuserdata.callback = callback;
     enumuserdata.userdata = userdata;
 
     spa_zero(registry_listener);
     pw_registry_add_listener(registry, &registry_listener,
-                             &registry_events, &enumuserdata);
+            &registry_events, &enumuserdata);
 
     roundtrip(core, loop);
 
@@ -768,14 +764,13 @@ ddbpw_enum_soundcards(void (*callback)(const char *name, const char *desc, void 
 #define STR(x) STR_HELPER(x)
 
 static const char settings_dlg[] =
-    "property \"PipeWire remote daemon name (empty for default)\" entry " CONFSTR_DDBPW_REMOTENAME " " STR(DDBPW_DEFAULT_REMOTENAME) ";\n"
-    "property \"Custom properties (overrides existing ones):\" label l;\n"
-    "property \"\" entry " CONFSTR_DDBPW_PROPS " \"\" ;\n"
-    "property \"Use PipeWire volume control\" checkbox " CONFSTR_DDBPW_VOLUMECONTROL " " STR(DDBPW_DEFAULT_VOLUMECONTROL) ";\n";
+"property \"PipeWire remote daemon name (empty for default)\" entry " CONFSTR_DDBPW_REMOTENAME " " STR(DDBPW_DEFAULT_REMOTENAME) ";\n"
+"property \"Custom properties (overrides existing ones):\" label l;\n"
+"property \"\" entry " CONFSTR_DDBPW_PROPS " \"\" ;\n"
+"property \"Use PipeWire volume control\" checkbox " CONFSTR_DDBPW_VOLUMECONTROL " " STR(DDBPW_DEFAULT_VOLUMECONTROL) ";\n";
 
 
-static DB_output_t plugin =
-{
+static DB_output_t plugin = {
     .plugin.api_vmajor = 1,
     .plugin.api_vminor = 0,
     .plugin.version_major = 0,
