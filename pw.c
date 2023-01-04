@@ -16,10 +16,6 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef HAVE_CONFIG_H
-#  include "../../config.h"
-#endif
-
 #include <spa/param/audio/format-utils.h>
 #include <spa/param/props.h>
 #include <pipewire/pipewire.h>
@@ -27,7 +23,11 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
+#ifdef DDB_IN_TREE
 #include "../../deadbeef.h"
+#else
+#include <deadbeef/deadbeef.h>
+#endif
 
 #define OP_ERROR_SUCCESS 0
 #define OP_ERROR_INTERNAL -1
