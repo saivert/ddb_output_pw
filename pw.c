@@ -202,7 +202,16 @@ static void on_control_info(void *_data, uint32_t id, const struct pw_stream_con
 #endif
 
     if (id == SPA_PROP_channelVolumes && plugin.has_volume) {
-        deadbeef->volume_set_amp(control->values[0]);
+        float dbvol = deadbeef->volume_get_amp();
+        int changedvolume = 0;
+        for (int i = 0; i < control->n_values; i++) {
+            if (control->values[i] != dbvol) {
+                changedvolume = i;
+                break;
+            }
+        }
+
+        deadbeef->volume_set_amp(control->values[changedvolume]);
     }
 }
 
