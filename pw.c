@@ -311,7 +311,7 @@ static int ddbpw_init(void) {
             PW_KEY_MEDIA_TYPE, "Audio",
             PW_KEY_MEDIA_CATEGORY, "Playback",
             PW_KEY_MEDIA_ROLE, "Music",
-            PW_KEY_NODE_TARGET, (!strcmp(dev, "default")) ? NULL: dev,
+            PW_KEY_TARGET_OBJECT, (!strcmp(dev, "default")) ? NULL: dev,
             NULL);
     do_update_media_props(NULL, props);
     pw_properties_setf(props, PW_KEY_NODE_RATE, "1/%u", plugin.fmt.samplerate);
