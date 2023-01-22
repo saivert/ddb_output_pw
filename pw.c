@@ -151,10 +151,6 @@ static void on_process(void *userdata) {
         if (bytesread <= 0) {
             pw_stream_flush(data->stream, 0);
         }
-    } else  {
-        deadbeef->mutex_lock(mutex);
-        pw_loop_invoke(pw_thread_loop_get_loop(data->loop), _apply_format, 1, NULL, 0, false, NULL);
-        deadbeef->mutex_unlock(mutex);
     }
 }
 
@@ -348,6 +344,7 @@ static int ddbpw_setformat (ddb_waveformat_t *fmt) {
     deadbeef->mutex_lock(mutex);
     _setformat_requested = 1;
     memcpy (&requested_fmt, fmt, sizeof (ddb_waveformat_t));
+    pw_loop_invoke(pw_thread_loop_get_loop(data.loop), _apply_format, 1, NULL, 0, false, NULL);
     deadbeef->mutex_unlock(mutex);
     return 0;
 }
