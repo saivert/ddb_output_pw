@@ -15,6 +15,9 @@ endif
 
 add_project_arguments(debug_cflags, language: 'c')
 
+add_project_arguments('-DPW_ENABLE_DEPRECATED', language: 'c')
+
+
 cc = meson.get_compiler('c')
 if not cc.has_header('deadbeef/deadbeef.h')
   error('missing header: deadbeef.h')
