@@ -344,7 +344,16 @@ static int ddbpw_setformat (ddb_waveformat_t *fmt) {
     deadbeef->mutex_lock(mutex);
     _setformat_requested = 1;
     memcpy (&requested_fmt, fmt, sizeof (ddb_waveformat_t));
+
+    if (data.stream == 0) {
+        deadbeef->mutex_unlock(mutex);
+        return 0;
+    }
+    pw_thread_loop_lock(data.loop);
+    pw_stream_set_active(data.stream, false);
     pw_loop_invoke(pw_thread_loop_get_loop(data.loop), _apply_format, 1, NULL, 0, false, NULL);
+    pw_thread_loop_unlock(data.loop);
+
     deadbeef->mutex_unlock(mutex);
     return 0;
 }
