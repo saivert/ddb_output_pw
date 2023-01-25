@@ -62,6 +62,7 @@ static ddb_playback_state_t state=DDB_PLAYBACK_STATE_STOPPED;
 static uintptr_t mutex;
 static int _setformat_requested;
 static float _initialvol;
+static int _buffersize;
 
 struct data {
     struct pw_thread_loop *loop;
@@ -138,7 +139,10 @@ static void on_process(void *userdata) {
             return;
         }
 
-        int len = 4096;
+        int len = _buffersize;
+        if (len > buf->datas[0].maxsize) {
+            len = buf->datas[0].maxsize;
+        }
         int bytesread=0;
         if (deadbeef->streamer_ok_to_read(-1)) {
             bytesread = deadbeef->streamer_read (buf->datas[0].data , len);
@@ -291,6 +295,7 @@ static int ddbpw_init(void) {
 
     state = DDB_PLAYBACK_STATE_STOPPED;
     _setformat_requested = 0;
+    _buffersize = 0;
 
     if (requested_fmt.samplerate != 0) {
         memcpy (&plugin.fmt, &requested_fmt, sizeof (ddb_waveformat_t));
@@ -493,7 +498,7 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt) {
     }
 
     trace ("format %dbit %s %dch %dHz channelmask=%X\n", plugin.fmt.bps, plugin.fmt.is_float ? "float" : "int", plugin.fmt.channels, plugin.fmt.samplerate, plugin.fmt.channelmask);
-
+    _buffersize = plugin.fmt.bps/8 * plugin.fmt.channels * 25 * (plugin.fmt.samplerate/1000);
 
     uint8_t spa_buffer[1024];
     const struct spa_pod *params[1] = {
