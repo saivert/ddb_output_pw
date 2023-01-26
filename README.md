@@ -11,6 +11,14 @@ Then install:
 
     $ cp builddir/ddb_out_pw.so ~/.local/lib64/deadbeef
 
+Remember to have the Deadbeef development package installed or `deadbeef.h` available in standard search paths (`/usr/include/deadbeef` or `/usr/local/include/deadbeef`).
+
+You can instruct meson to search for include files like so:
+
+    $ C_INCLUDE_PATH=/opt meson setup
+
+This assumes the header file is in `/opt/deadbeef` directory.
+
 
 New plugin settings UI:
 
