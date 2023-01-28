@@ -244,9 +244,11 @@ static void do_update_media_props(DB_playItem_t *track, struct pw_properties *pr
     };
 
     if (!track) {
-        track = deadbeef->streamer_get_playing_track();
+        track = deadbeef->streamer_get_playing_track_safe();
+        if (track == NULL) {
+            return;
+        }
         notrackgiven = 1;
-        return;
     }
 
     struct spa_dict_item items[3] = {0};
@@ -791,8 +793,8 @@ static const char settings_dlg[] =
 
 
 static DB_output_t plugin = {
-    .plugin.api_vmajor = 1,
-    .plugin.api_vminor = 0,
+    .plugin.api_vmajor = DB_API_VERSION_MAJOR,
+    .plugin.api_vminor = DB_API_VERSION_MINOR,
     .plugin.version_major = 0,
     .plugin.version_minor = 1,
     .plugin.flags = DDB_PLUGIN_FLAG_LOGGING,
