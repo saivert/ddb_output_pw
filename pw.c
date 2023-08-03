@@ -38,6 +38,12 @@
 #define CONFSTR_DDBPW_PROPS "pipewire.properties"
 #define DDBPW_DEFAULT_REMOTENAME ""
 
+
+#ifdef ENABLE_BUFFER_OPTION
+#define CONFSTR_DDBPW_BUFLENGTH "pipewire.buflength"
+#endif
+#define DDBPW_DEFAULT_BUFLENGTH 25
+
 #ifdef DDBPW_DEBUG
 #define trace(...) { fprintf(stdout, __VA_ARGS__); }
 #else
@@ -63,6 +69,7 @@ static uintptr_t mutex;
 static int _setformat_requested;
 static float _initialvol;
 static int _buffersize;
+static int _stride;
 
 struct data {
     struct pw_thread_loop *loop;
@@ -123,12 +130,14 @@ static int _apply_format(struct spa_loop *loop,
 }
 
 static void on_process(void *userdata) {
+    static int counter;
     struct data *data = userdata;
     struct pw_buffer *b = NULL;
     struct spa_buffer *buf = NULL;
     int16_t *dst = NULL;
 
     if (!_setformat_requested) {
+
         if ((b = pw_stream_dequeue_buffer(data->stream)) == NULL) {
             pw_log_warn("out of buffers: %m");
             return;
@@ -139,22 +148,40 @@ static void on_process(void *userdata) {
             return;
         }
 
-        int len = _buffersize;
-        if (len > buf->datas[0].maxsize) {
-            len = buf->datas[0].maxsize;
+#ifdef ENABLE_BUFFER_OPTION
+        uint32_t buffersize = _buffersize;
+        uint32_t nframes = SPA_MIN(buffersize, buf->datas[0].maxsize/_stride);
+#else
+        uint32_t buffersize = _buffersize;
+        uint32_t nframes = SPA_MIN(buffersize, buf->datas[0].maxsize/_stride);
+#endif
+
+#if PW_CHECK_VERSION(0, 3, 49)
+        if (b->requested != 0) {
+            nframes = SPA_MIN(b->requested, nframes);
         }
+#endif
+
+        int len = nframes * _stride;
         int bytesread=0;
         if (deadbeef->streamer_ok_to_read(-1)) {
             bytesread = deadbeef->streamer_read (buf->datas[0].data , len);
-        } 
+        }
+        // if (bytesread != 0) {
+        //     b->size = bytesread / _stride;
+        // }
+        if (bytesread < len) {
+            spa_memzero(buf->datas[0].data+bytesread, len-bytesread);
+        }
 
         buf->datas[0].chunk->offset = 0;
-        buf->datas[0].chunk->stride = 1;
+        buf->datas[0].chunk->stride = _stride;
         buf->datas[0].chunk->size = bytesread;
+
+        printf("%d len: %d stride: %d requested: %ld nframes: %d maxsize: %u (/ stride %d) _buffersize %d bytesread %d\n",
+            counter++, len, _stride, b->requested, nframes, buf->datas[0].maxsize, buf->datas[0].maxsize / _stride, buffersize, bytesread);
+
         pw_stream_queue_buffer(data->stream, b);
-        if (bytesread <= 0) {
-            pw_stream_flush(data->stream, 0);
-        }
     }
 }
 
@@ -223,6 +250,25 @@ static void on_param_changed(void *userdata, uint32_t id, const struct spa_pod *
     if (plugin.has_volume) {
         set_volume(0, _initialvol);
     }
+
+#ifdef ENABLE_BUFFER_OPTION
+    {
+        const struct spa_pod *params[1];
+        uint8_t buffer[4096];
+        struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+        int stride = plugin.fmt.channels * (plugin.fmt.bps/8);
+        int size = _buffersize*stride;
+
+        params[0] = spa_pod_builder_add_object(&b,
+                SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers,
+                SPA_PARAM_BUFFERS_blocks,  SPA_POD_Int(1),
+                SPA_PARAM_BUFFERS_size,    SPA_POD_Int(size),
+                SPA_PARAM_BUFFERS_stride,  SPA_POD_Int(stride));
+
+        pw_stream_update_params(data.stream, params, 1);
+    }
+#endif
+
 }
 
 static const struct pw_stream_events stream_events = {
@@ -500,7 +546,7 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt) {
     }
 
     trace ("format %dbit %s %dch %dHz channelmask=%X\n", plugin.fmt.bps, plugin.fmt.is_float ? "float" : "int", plugin.fmt.channels, plugin.fmt.samplerate, plugin.fmt.channelmask);
-    _buffersize = plugin.fmt.bps/8 * plugin.fmt.channels * 25 * (plugin.fmt.samplerate/1000);
+    _stride = plugin.fmt.channels * (plugin.fmt.bps / 8);
 
     uint8_t spa_buffer[1024];
     const struct spa_pod *params[1] = {
@@ -508,6 +554,14 @@ static int ddbpw_set_spec(ddb_waveformat_t *fmt) {
     };
 
     struct pw_properties *props = pw_properties_new(NULL, NULL);
+#ifdef ENABLE_BUFFER_OPTION
+    _buffersize = deadbeef->conf_get_int(CONFSTR_DDBPW_BUFLENGTH, DDBPW_DEFAULT_BUFLENGTH) * plugin.fmt.samplerate / 1000;
+    pw_properties_setf(props, PW_KEY_NODE_LATENCY, "%d/%u", _buffersize, plugin.fmt.samplerate);
+#else
+    _buffersize = DDBPW_DEFAULT_BUFLENGTH * plugin.fmt.samplerate / 1000;
+    pw_properties_setf(props, PW_KEY_NODE_LATENCY, "%d/%u", _buffersize, plugin.fmt.samplerate);
+#endif
+
     pw_properties_setf(props, PW_KEY_NODE_RATE, "1/%u", plugin.fmt.samplerate);
     pw_stream_update_properties(data.stream, &props->dict);
     pw_properties_free(props);
@@ -789,7 +843,11 @@ static const char settings_dlg[] =
 "property \"PipeWire remote daemon name (empty for default)\" entry " CONFSTR_DDBPW_REMOTENAME " " STR(DDBPW_DEFAULT_REMOTENAME) ";\n"
 "property \"Custom properties (overrides existing ones):\" label l;\n"
 "property \"\" entry " CONFSTR_DDBPW_PROPS " \"\" ;\n"
-"property \"Use PipeWire volume control\" checkbox " CONFSTR_DDBPW_VOLUMECONTROL " " STR(DDBPW_DEFAULT_VOLUMECONTROL) ";\n";
+"property \"Use PipeWire volume control\" checkbox " CONFSTR_DDBPW_VOLUMECONTROL " " STR(DDBPW_DEFAULT_VOLUMECONTROL) ";\n"
+#ifdef ENABLE_BUFFER_OPTION
+"property \"Buffer length (ms)\" entry " CONFSTR_DDBPW_BUFLENGTH " " STR(DDBPW_DEFAULT_BUFLENGTH) ";\n"
+#endif
+;
 
 
 static DB_output_t plugin = {
@@ -800,7 +858,7 @@ static DB_output_t plugin = {
     .plugin.flags = DDB_PLUGIN_FLAG_LOGGING,
     .plugin.type = DB_PLUGIN_OUTPUT,
     .plugin.id = PW_PLUGIN_ID,
-    .plugin.name = "PipeWire output plugin",
+    .plugin.name = "PipeWire output plugin dev",
     //.plugin.descr = "This is a new PipeWire plugin",
     .plugin.copyright =
         "Pipewire output plugin for DeaDBeeF Player\n"
