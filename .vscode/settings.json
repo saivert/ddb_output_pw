@@ -1,0 +1,14 @@
+{
+    "clangd.arguments": [
+        "-background-index",
+        "-compile-commands-dir=builddir"
+    ],
+    "files.associations": {
+        "array": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "ringbuffer.h": "c",
+        "limits.h": "c"
+    },
+    "C_Cpp.default.compileCommands": "builddir/compile_commands.json",
+}

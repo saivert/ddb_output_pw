@@ -1,0 +1,40 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Meson: Build Project",
+			"options": {
+				"cwd": "${workspaceFolder}/builddir"
+			},
+			"command": "meson compile",
+			"problemMatcher": [
+				{
+					"base": "$gcc",
+					"fileLocation": ["relative", "${workspaceFolder}/builddir"]
+				}
+			]
+		},
+		{
+			"label": "Deploy",
+			"type": "shell",
+			"command": "cp ${workspaceFolder}/builddir/ddb_out_pw.so ~/.local/lib64/deadbeef/",
+			"problemMatcher": [],
+			"dependsOn": ["Meson: Build Project"],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"type": "shell",
+			"label": "Clang-Tidy",
+			"command": "clang-tidy -p builddir -checks=\"*\" pw.c",
+			"problemMatcher": [
+				{
+					"base": "$gcc",
+				}
+			]
+		}
+	]
+}
