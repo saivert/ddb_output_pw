@@ -130,7 +130,9 @@ static int _apply_format(struct spa_loop *loop,
 }
 
 static void on_process(void *userdata) {
+#ifdef DDBPW_DEBUG
     static int counter;
+#endif
     struct data *data = userdata;
     struct pw_buffer *b = NULL;
     struct spa_buffer *buf = NULL;
@@ -178,7 +180,7 @@ static void on_process(void *userdata) {
         buf->datas[0].chunk->stride = _stride;
         buf->datas[0].chunk->size = bytesread;
 
-        printf("%d len: %d stride: %d requested: %ld nframes: %d maxsize: %u (/ stride %d) _buffersize %d bytesread %d\n",
+        trace("%d len: %d stride: %d requested: %ld nframes: %d maxsize: %u (/ stride %d) _buffersize %d bytesread %d\n",
             counter++, len, _stride, b->requested, nframes, buf->datas[0].maxsize, buf->datas[0].maxsize / _stride, buffersize, bytesread);
 
         pw_stream_queue_buffer(data->stream, b);
